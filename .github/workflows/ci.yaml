@@ -1,0 +1,29 @@
+name: CI AND IT
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+
+
+jobs:
+  CI:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: true
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-features
+      - name: 'Install & Test'
+        run: |
+          cargo build
+          cargo test
