@@ -7,3 +7,4 @@ description = "SkyWalking Rust Agent provides observability capability for Rust 
 license = "Apache 2.0"
 
 [dependencies]
+rand = "0.7.3"

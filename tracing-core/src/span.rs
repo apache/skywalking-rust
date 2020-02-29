@@ -176,8 +176,8 @@ mod span_tests {
     fn test_span_with_tags() {
         let context = TracingContext::new();
         let mut span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
-        span.tag(Tag::New(String::from("tag1"), String::from("value1")));
-        span.tag(Tag::New(String::from("tag2"), String::from("value2")));
+        span.tag(Tag::new(String::from("tag1"), String::from("value1")));
+        span.tag(Tag::new(String::from("tag2"), String::from("value2")));
 
         let tags = span.tags();
         assert_eq!(tags.len(), 2);

@@ -1,11 +1,11 @@
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct Tag {
     key: String,
     value: String,
 }
 
 impl Tag {
-    pub fn New(key: String, value: String) -> Self {
+    pub fn new(key: String, value: String) -> Self {
         Tag {
             key,
             value,
@@ -27,7 +27,7 @@ mod tag_tests {
 
     #[test]
     fn test_tag_new() {
-        let tag = Tag::New(String::from("tag_key"), String::from("tag_value"));
+        let tag = Tag::new(String::from("tag_key"), String::from("tag_value"));
         assert_eq!(tag.key, "tag_key");
         assert_eq!(tag.value, "tag_value");
         let tag_clone = tag.clone();
