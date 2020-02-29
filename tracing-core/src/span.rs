@@ -142,14 +142,15 @@ impl Span for TracingSpan {
 
 #[cfg(test)]
 mod span_tests {
+    use std::rc::Rc;
     use std::time::SystemTime;
 
-    use crate::{Tag, TracingContext};
+    use crate::{Context, Reporter, Tag, TracingContext};
     use crate::span::*;
 
     #[test]
     fn test_span_new() {
-        let mut context = TracingContext::new();
+        let mut context = TracingContext::new(&MockRegister {}).unwrap();
         let mut span = TracingSpan::_new(String::from("op1"), 0, -1);
         assert_eq!(span.parent_span_id, -1);
         assert_eq!(span.span_id, 0);
@@ -167,14 +168,14 @@ mod span_tests {
 
     #[test]
     fn test_new_entry_span() {
-        let mut context = TracingContext::new();
-        let mut span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
+        let context = TracingContext::new(&MockRegister {}).unwrap();
+        let span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
         assert_eq!(span.is_entry(), true)
     }
 
     #[test]
     fn test_span_with_tags() {
-        let context = TracingContext::new();
+        let context = TracingContext::new(&MockRegister {}).unwrap();
         let mut span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
         span.tag(Tag::new(String::from("tag1"), String::from("value1")));
         span.tag(Tag::new(String::from("tag2"), String::from("value2")));
@@ -182,6 +183,18 @@ mod span_tests {
         let tags = span.tags();
         assert_eq!(tags.len(), 2);
         assert_eq!(tags.get(0).unwrap().key(), "tag1")
+    }
+
+    struct MockRegister {}
+
+    impl Reporter for MockRegister {
+        fn service_instance_id(&self) -> Option<i32> {
+            Some(1)
+        }
+
+        fn report_trace(&self, finished_context: TracingContext) {
+            unimplemented!()
+        }
     }
 }
 

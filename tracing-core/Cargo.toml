@@ -3,7 +3,7 @@ name = "skywalking-core"
 version = "0.1.0"
 authors = ["Apache Software Foundation (ASF)"]
 edition = "2018"
-description = "SkyWalking Rust Agent provides observability capability for Rust App and Library, including tracing, metrics, topology map for distributed system and alert."
+description = "SkyWalking tracing core APIs. Provide the way to build SkyWalking native format traces/spans and propagated context."
 license = "Apache 2.0"
 
 [dependencies]

@@ -1,8 +1,6 @@
 use std::hash::Hash;
-use std::thread;
 use std::time::SystemTime;
-
-use rand::{Rng, RngCore};
+use rand::RngCore;
 
 pub struct IDGenerator {}
 
