@@ -29,27 +29,27 @@ pub struct TracingSpan {
 
 impl TracingSpan {
     /// Create a new entry span
-    pub fn new_entry_span(operation_name: String, context: &mut dyn Context, parent: Option<&dyn Span>) -> Box<dyn Span> {
+    pub fn new_entry_span(operation_name: String, context: &mut dyn Context, parent: Option<Box<dyn Span>>) -> Box<dyn Span> {
         let mut span = TracingSpan::_new(operation_name, context, parent);
         span.is_entry = true;
         Box::new(span)
     }
 
     /// Create a new exit span
-    pub fn new_exit_span(operation_name: String, context: &mut dyn Context, parent: Option<&dyn Span>) -> Box<dyn Span> {
+    pub fn new_exit_span(operation_name: String, context: &mut dyn Context, parent: Option<Box<dyn Span>>) -> Box<dyn Span> {
         let mut span = TracingSpan::_new(operation_name, context, parent);
         span.is_exit = true;
         Box::new(span)
     }
 
     /// Create a new local span
-    pub fn new_local_span(operation_name: String, context: &mut dyn Context, parent: Option<&dyn Span>) -> Box<dyn Span> {
+    pub fn new_local_span(operation_name: String, context: &mut dyn Context, parent: Option<Box<dyn Span>>) -> Box<dyn Span> {
         let span = TracingSpan::_new(operation_name, context, parent);
         Box::new(span)
     }
 
     /// Create a span and set the limited internal values
-    fn _new(operation_name: String, context: &mut dyn Context, parent: Option<&Span>) -> Self {
+    fn _new(operation_name: String, context: &mut dyn Context, parent: Option<Box<dyn Span>>) -> Self {
         TracingSpan {
             operation_name: operation_name.clone(),
             span_id: context.next_span_id(),
@@ -111,7 +111,7 @@ mod span_tests {
         span.start();
         assert_ne!(span.start_time, 0);
 
-        let mut span2 = TracingSpan::_new(String::from("op2"), &mut context, Some(&span));
+        let mut span2 = TracingSpan::_new(String::from("op2"), &mut context, Some(Box::new(span)));
         assert_eq!("op2", span2.operation_name);
         assert_eq!(span2.paren_span_id, 0);
         assert_eq!(span2.span_id, 1);
