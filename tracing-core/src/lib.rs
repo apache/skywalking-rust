@@ -15,6 +15,8 @@
 
 pub use context::Context;
 pub use context::TracingContext;
+pub use context_carrier::Extractable;
+pub use context_carrier::Injectable;
 pub use context_listener::ContextListener;
 pub use id::ID;
 pub use log::EventField;
@@ -29,4 +31,5 @@ pub mod id;
 pub mod context_listener;
 pub mod log;
 pub mod context_carrier;
+pub mod segment_ref;
 
