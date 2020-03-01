@@ -1,21 +1,42 @@
 use std::time::SystemTime;
 
+use crate::log::LogEvent;
 use crate::Tag;
 
 /// Span is one of the tracing concept, representing a time duration.
-/// Typically, it represent a method invocation or a RPC.
+/// Span typically used in the certain scope, Typically, it represent a method invocation or a RPC.
 pub trait Span {
+    /// Start the span with the current system time
     fn start(&mut self);
+    /// Start the span by using given time point.
     fn start_with_timestamp(&mut self, timestamp: SystemTime);
-    fn is_entry(&self) -> bool;
-    fn is_exit(&self) -> bool;
-    fn span_id(&self) -> i32;
+    /// Add a new tag to the span
     fn tag(&mut self, tag: Tag);
-    /// End means sealing the end time.
-    /// Still need to call Context::archive
+    /// Add a log event to the span
+    fn log(&mut self, log: LogEvent);
+    /// Indicate error occurred during the span execution.
+    fn error_occurred(&mut self);
+    /// Set the component id represented by this span.
+    /// Component id is pre-definition in the SkyWalking OAP backend component-libraries.yml file.
+    /// Read [Component library settings](https://github.com/apache/skywalking/blob/master/docs/en/guides/Component-library-settings.md) documentation for more details
+    fn set_component_id(&mut self, component_id: i32);
+    /// End the span with the current system time.
+    /// End just means sealing the end time, still need to call Context::finish_span to officially finish span and archive it for further reporting.
     fn end(&mut self);
+    /// End the span by using given time point.
+    /// End just means sealing the end time, still need to call Context::finish_span to officially finish span and archive it for further reporting.
     fn end_with_timestamp(&mut self, timestamp: SystemTime);
-    fn is_ended(&mut self) -> bool;
+
+    /// All following are status reading methods.
+
+    /// Return true if the span has been set end time
+    fn is_ended(&self) -> bool;
+    /// Return true if the span is an entry span
+    fn is_entry(&self) -> bool;
+    /// Return true if the span is an exit span
+    fn is_exit(&self) -> bool;
+    /// Return span id.
+    fn span_id(&self) -> i32;
     /// Return the replicated existing tags.
     fn tags(&self) -> Vec<Tag>;
 }
@@ -41,8 +62,10 @@ pub struct TracingSpan {
     /// Component id is defined in the main repo to represent the library kind.
     component_id: Option<i32>,
     tags: Vec<Tag>,
+    logs: Vec<LogEvent>,
 }
 
+/// Tracing Span is only created inside TracingContext.
 impl TracingSpan {
     /// Create a new entry span
     pub fn new_entry_span(operation_name: String, span_id: i32, parent_span_id: i32) -> Box<dyn Span> {
@@ -78,6 +101,7 @@ impl TracingSpan {
             error_occurred: false,
             component_id: None,
             tags: Vec::new(),
+            logs: Vec::new(),
         }
     }
 }
@@ -97,20 +121,20 @@ impl Span for TracingSpan {
         } as u64;
     }
 
-    fn is_entry(&self) -> bool {
-        self.is_entry
-    }
-
-    fn is_exit(&self) -> bool {
-        self.is_exit
-    }
-
-    fn span_id(&self) -> i32 {
-        self.span_id
-    }
-
     fn tag(&mut self, tag: Tag) {
         self.tags.push(tag);
+    }
+
+    fn log(&mut self, log: LogEvent) {
+        self.logs.push(log);
+    }
+
+    fn error_occurred(&mut self) {
+        self.error_occurred = true;
+    }
+
+    fn set_component_id(&mut self, component_id: i32) {
+        self.component_id = Some(component_id);
     }
 
     fn end(&mut self) {
@@ -127,8 +151,20 @@ impl Span for TracingSpan {
         } as u64;
     }
 
-    fn is_ended(&mut self) -> bool {
+    fn is_ended(&self) -> bool {
         self.end_time != 0
+    }
+
+    fn is_entry(&self) -> bool {
+        self.is_entry
+    }
+
+    fn is_exit(&self) -> bool {
+        self.is_exit
+    }
+
+    fn span_id(&self) -> i32 {
+        self.span_id
     }
 
     fn tags(&self) -> Vec<Tag> {
@@ -142,15 +178,14 @@ impl Span for TracingSpan {
 
 #[cfg(test)]
 mod span_tests {
-    use std::rc::Rc;
     use std::time::SystemTime;
 
-    use crate::{Context, Reporter, Tag, TracingContext};
+    use crate::log::{EventField, LogEvent};
     use crate::span::*;
+    use crate::Tag;
 
     #[test]
     fn test_span_new() {
-        let mut context = TracingContext::new(&MockRegister {}).unwrap();
         let mut span = TracingSpan::_new(String::from("op1"), 0, -1);
         assert_eq!(span.parent_span_id, -1);
         assert_eq!(span.span_id, 0);
@@ -168,14 +203,12 @@ mod span_tests {
 
     #[test]
     fn test_new_entry_span() {
-        let context = TracingContext::new(&MockRegister {}).unwrap();
         let span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
         assert_eq!(span.is_entry(), true)
     }
 
     #[test]
     fn test_span_with_tags() {
-        let context = TracingContext::new(&MockRegister {}).unwrap();
         let mut span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
         span.tag(Tag::new(String::from("tag1"), String::from("value1")));
         span.tag(Tag::new(String::from("tag2"), String::from("value2")));
@@ -185,16 +218,16 @@ mod span_tests {
         assert_eq!(tags.get(0).unwrap().key(), "tag1")
     }
 
-    struct MockRegister {}
+    #[test]
+    fn test_span_with_logs() {
+        let mut span = TracingSpan::_new(String::from("op1"), 0, -1);
 
-    impl Reporter for MockRegister {
-        fn service_instance_id(&self) -> Option<i32> {
-            Some(1)
-        }
+        span.log(LogEvent::new(123, Box::new([
+            { EventField::new(String::from("event1"), String::from("event description")) },
+            { EventField::new(String::from("event2"), String::from("event description")) },
+        ])));
 
-        fn report_trace(&self, finished_context: TracingContext) {
-            unimplemented!()
-        }
+        assert_eq!(span.logs.len(), 1);
     }
 }
 

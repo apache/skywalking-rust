@@ -1,3 +1,6 @@
+/// Tag is a key value pair to represent an supplementary instruction for the span.
+/// Common and most widely used tags could be found here,
+/// https://github.com/apache/skywalking/blob/master/apm-sniffer/apm-agent-core/src/main/java/org/apache/skywalking/apm/agent/core/context/tag/Tags.java.
 #[derive(Clone, Hash)]
 pub struct Tag {
     key: String,

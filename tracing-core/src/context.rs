@@ -1,14 +1,18 @@
-use std::rc::Rc;
-
-use crate::{ID, Reporter, Span, TracingSpan};
+use crate::{ContextListener, ID, Span};
 use crate::id::IDGenerator;
+use crate::span::TracingSpan;
 
 /// Context represents the context of a tracing process.
 /// All new span belonging to this tracing context should be created through this context.
 pub trait Context {
+    /// Create an entry span belonging this context
     fn create_entry_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    /// Create an exit span belonging this context
     fn create_exit_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    /// Create an local span belonging this context
     fn create_local_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    /// Finish the given span. The span is only being accept if it belongs to this context.
+    /// Return err if the span was created by another context.
     fn finish_span(&mut self, span: Box<dyn Span>);
 }
 
@@ -23,7 +27,7 @@ pub struct TracingContext {
 
 impl TracingContext {
     /// Create a new instance
-    pub fn new(reporter: &dyn Reporter) -> Option<TracingContext> {
+    pub fn new(reporter: &dyn ContextListener) -> Option<TracingContext> {
         let instance_id = reporter.service_instance_id();
         match instance_id {
             None => { None }
@@ -79,11 +83,10 @@ impl Context for TracingContext {
 
 #[cfg(test)]
 mod context_tests {
-    use std::rc::Rc;
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use crate::{Context, Reporter, TracingContext};
+    use crate::{Context, ContextListener, Tag, TracingContext};
 
     #[test]
     fn test_context_stack() {
@@ -92,7 +95,8 @@ mod context_tests {
         let span1 = context.create_entry_span(String::from("op1"), None);
         {
             assert_eq!(span1.span_id(), 0);
-            let span2 = context.create_entry_span(String::from("op2"), Some(&span1));
+            let mut span2 = context.create_entry_span(String::from("op2"), Some(&span1));
+            span2.tag(Tag::new(String::from("tag1"), String::from("value1")));
             {
                 assert_eq!(span2.span_id(), 1);
                 let mut span3 = context.create_entry_span(String::from("op3"), Some(&span2));
@@ -132,7 +136,7 @@ mod context_tests {
         }
     }
 
-    impl Reporter for MockReporter {
+    impl ContextListener for MockReporter {
         fn service_instance_id(&self) -> Option<i32> {
             Some(1)
         }
@@ -144,7 +148,7 @@ mod context_tests {
 
     struct MockRegisterPending {}
 
-    impl Reporter for MockRegisterPending {
+    impl ContextListener for MockRegisterPending {
         fn service_instance_id(&self) -> Option<i32> {
             None
         }

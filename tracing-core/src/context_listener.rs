@@ -4,7 +4,7 @@ use crate::TracingContext;
 
 /// Register implementation communicate with the SkyWalking OAP backend.
 /// It does metadata register, traces report, and runtime status report or interaction.
-pub trait Reporter {
+pub trait ContextListener {
     /// Return the registered service id
     /// If haven't registered successfully, return None.
     fn service_instance_id(&self) -> Option<i32>;
