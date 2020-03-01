@@ -13,20 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use context::Context;
-pub use context::TracingContext;
-pub use context_listener::ContextListener;
-pub use id::ID;
-pub use log::EventField;
-pub use log::LogEvent;
-pub use span::Span;
-pub use tag::Tag;
-
-pub mod span;
-pub mod context;
-pub mod tag;
-pub mod id;
-pub mod context_listener;
-pub mod log;
-pub mod context_carrier;
-
+/// The Injectable implementation supports inject the give key/value for further propagation,
+/// especially in across process propagation.
+/// Such as putting a key/value into the HTTP header.
+pub trait Injectable {
+    /// Inject the given key/value into the implementation.
+    /// The way of injection is determined by the implementation, no panic! should happens even injection fails.
+    fn inject(key: String, value: String);
+}
