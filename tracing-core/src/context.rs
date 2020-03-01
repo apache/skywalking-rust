@@ -13,17 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use base64::{decode, encode};
+
 use crate::{ContextListener, ID, Span};
+use crate::context_carrier::{Extractable, Injectable};
 use crate::id::IDGenerator;
+use crate::segment_ref::SegmentRef;
 use crate::span::TracingSpan;
 
 /// Context represents the context of a tracing process.
 /// All new span belonging to this tracing context should be created through this context.
 pub trait Context {
     /// Create an entry span belonging this context
-    fn create_entry_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    fn create_entry_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>, extractor: &dyn Extractable) -> Box<dyn Span>;
     /// Create an exit span belonging this context
-    fn create_exit_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    fn create_exit_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>, peer: String, injector: &dyn Injectable) -> Box<dyn Span>;
     /// Create an local span belonging this context
     fn create_local_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
     /// Finish the given span. The span is only being accept if it belongs to this context.
@@ -67,25 +71,39 @@ impl TracingContext {
 
 /// Default implementation of Context
 impl Context for TracingContext {
-    fn create_entry_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span> {
-        TracingSpan::new_entry_span(operation_name, self.next_span_id(), match parent {
+    fn create_entry_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>, extractor: &dyn Extractable) -> Box<dyn Span> {
+        let mut entry_span = TracingSpan::new_entry_span(operation_name, self.next_span_id(), match parent {
             None => { -1 }
             Some(s) => { s.span_id() }
-        })
+        });
+        match SegmentRef::from_text(extractor.extract("sw6".to_string())) {
+            Some(reference) => {
+                if self.self_generated_id {
+                    self.self_generated_id = false;
+                    self.primary_trace_id = reference.get_trace_id();
+                }
+                entry_span._add_ref(reference);
+            }
+            _ => {}
+        }
+        Box::new(entry_span)
     }
 
-    fn create_exit_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span> {
-        TracingSpan::new_exit_span(operation_name, self.next_span_id(), match parent {
+    fn create_exit_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>, peer: String, injector: &dyn Injectable) -> Box<dyn Span> {
+        let exit_span = TracingSpan::new_exit_span(operation_name, self.next_span_id(), match parent {
             None => { -1 }
             Some(s) => { s.span_id() }
-        })
+        }, peer);
+
+
+        Box::new(exit_span)
     }
 
     fn create_local_span(&mut self, operation_name: String, parent: Option<&Box<dyn Span>>) -> Box<dyn Span> {
-        TracingSpan::new_local_span(operation_name, self.next_span_id(), match parent {
+        Box::new(TracingSpan::new_local_span(operation_name, self.next_span_id(), match parent {
             None => { -1 }
             Some(s) => { s.span_id() }
-        })
+        }))
     }
 
     fn finish_span(&mut self, mut span: Box<dyn Span>) {
@@ -101,20 +119,20 @@ mod context_tests {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use crate::{Context, ContextListener, Tag, TracingContext};
+    use crate::{Context, ContextListener, Extractable, ID, Tag, TracingContext};
 
     #[test]
     fn test_context_stack() {
         let reporter = MockReporter::new();
         let mut context = TracingContext::new(&reporter).unwrap();
-        let span1 = context.create_entry_span(String::from("op1"), None);
+        let span1 = context.create_entry_span(String::from("op1"), None, &MockerHeader {});
         {
             assert_eq!(span1.span_id(), 0);
-            let mut span2 = context.create_entry_span(String::from("op2"), Some(&span1));
+            let mut span2 = context.create_local_span(String::from("op2"), Some(&span1));
             span2.tag(Tag::new(String::from("tag1"), String::from("value1")));
             {
                 assert_eq!(span2.span_id(), 1);
-                let mut span3 = context.create_entry_span(String::from("op3"), Some(&span2));
+                let mut span3 = context.create_local_span(String::from("op3"), Some(&span2));
                 assert_eq!(span3.span_id(), 2);
 
                 context.finish_span(span3);
@@ -127,6 +145,7 @@ mod context_tests {
         // context has moved into reporter. Can't be used again.
 
         let received_context = reporter.recv.recv().unwrap();
+        assert_eq!(received_context.primary_trace_id == ID::new(3, 4, 5), true);
         assert_eq!(received_context.finished_spans.len(), 3);
     }
 
@@ -158,6 +177,14 @@ mod context_tests {
 
         fn report_trace(&self, finished_context: TracingContext) {
             self.sender.send(finished_context);
+        }
+    }
+
+    struct MockerHeader {}
+
+    impl Extractable for MockerHeader {
+        fn extract(&self, key: String) -> &str {
+            "1-My40LjU=-MS4yLjM=-4-1-1-IzEyNy4wLjAuMTo4MDgw-Iy9wb3J0YWw=-MTIz"
         }
     }
 

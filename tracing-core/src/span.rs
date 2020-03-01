@@ -16,6 +16,7 @@
 use std::time::SystemTime;
 
 use crate::log::LogEvent;
+use crate::segment_ref::SegmentRef;
 use crate::Tag;
 
 /// Span is one of the tracing concept, representing a time duration.
@@ -79,31 +80,33 @@ pub struct TracingSpan {
     component_id: Option<i32>,
     tags: Vec<Tag>,
     logs: Vec<LogEvent>,
+    refs: Vec<SegmentRef>,
 }
 
 /// Tracing Span is only created inside TracingContext.
 impl TracingSpan {
     /// Create a new entry span
-    pub fn new_entry_span(operation_name: String, span_id: i32, parent_span_id: i32) -> Box<dyn Span> {
+    pub fn new_entry_span(operation_name: String, span_id: i32, parent_span_id: i32) -> TracingSpan {
         let mut span = TracingSpan::_new(operation_name, span_id, parent_span_id);
         span.is_entry = true;
-        Box::new(span)
+        span
     }
 
     /// Create a new exit span
-    pub fn new_exit_span(operation_name: String, span_id: i32, parent_span_id: i32) -> Box<dyn Span> {
+    pub fn new_exit_span(operation_name: String, span_id: i32, parent_span_id: i32, peer: String) -> TracingSpan {
         let mut span = TracingSpan::_new(operation_name, span_id, parent_span_id);
         span.is_exit = true;
-        Box::new(span)
+        span.peer = Some(peer);
+        span
     }
 
     /// Create a new local span
-    pub fn new_local_span(operation_name: String, span_id: i32, parent_span_id: i32) -> Box<dyn Span> {
+    pub fn new_local_span(operation_name: String, span_id: i32, parent_span_id: i32) -> TracingSpan {
         let span = TracingSpan::_new(operation_name, span_id, parent_span_id);
-        Box::new(span)
+        span
     }
 
-    /// Create a span and set the limited internal values
+    /// Create a span
     fn _new(operation_name: String, span_id: i32, parent_span_id: i32) -> Self {
         TracingSpan {
             operation_name,
@@ -118,7 +121,12 @@ impl TracingSpan {
             component_id: None,
             tags: Vec::new(),
             logs: Vec::new(),
+            refs: Vec::new(),
         }
+    }
+
+    pub fn _add_ref(&mut self, reference: SegmentRef) {
+        self.refs.push(reference);
     }
 }
 

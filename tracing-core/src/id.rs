@@ -15,6 +15,7 @@
 
 use std::hash::Hash;
 use std::time::SystemTime;
+
 use rand::RngCore;
 
 pub struct IDGenerator {}
@@ -53,18 +54,18 @@ impl ID {
 
     /// Convert the literal string text back to ID object.
     /// Return Option::None if the text is not combined by 3 dot split i64 parts
-    pub fn from(id_text: String) -> Option<Self> {
+    pub fn from(id_text: String) -> Result<Self, String> {
         let strings: Vec<&str> = id_text.split(".").collect();
         if strings.len() == 3 {
             let part1 = strings[0].parse::<i64>();
-            if part1.is_err() { return None; }
+            if part1.is_err() { return Err("part 1 is not a i64".to_string()); }
             let part2 = strings[1].parse::<i64>();
-            if part2.is_err() { return None; }
+            if part2.is_err() { return Err("part 2 is not a i64".to_string()); }
             let part3 = strings[2].parse::<i64>();
-            if part3.is_err() { return None; }
-            Some(ID::new(part1.unwrap(), part2.unwrap(), part3.unwrap()))
+            if part3.is_err() { return Err("part 3 is not a i64".to_string()); }
+            Ok(ID::new(part1.unwrap(), part2.unwrap(), part3.unwrap()))
         } else {
-            None
+            Err("The ID is not combined by 3 parts.".to_string())
         }
     }
 }
@@ -107,9 +108,9 @@ mod id_tests {
         assert_eq!(id4.eq(&id1), true);
 
         let id5_none = ID::from(String::from("1.2"));
-        assert_eq!(id5_none == None, true);
+        assert_ne!(id5_none.err().unwrap().len(), 0);
 
         let id6_illegal = ID::from(String::from("1.2.a"));
-        assert_eq!(id6_illegal == None, true);
+        assert_ne!(id6_illegal.err().unwrap().len(), 0);
     }
 }

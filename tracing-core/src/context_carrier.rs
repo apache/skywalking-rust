@@ -14,10 +14,16 @@
 // limitations under the License.
 
 /// The Injectable implementation supports inject the give key/value for further propagation,
-/// especially in across process propagation.
 /// Such as putting a key/value into the HTTP header.
 pub trait Injectable {
     /// Inject the given key/value into the implementation.
     /// The way of injection is determined by the implementation, no panic! should happens even injection fails.
-    fn inject(key: String, value: String);
+    fn inject(&self, key: String, value: String);
+}
+
+/// The Extractable implementations extract propagated context out the implementation.
+/// Such as fetching the key/value from the HTTP header.
+pub trait Extractable {
+    /// Fetch the value by the given key.
+    fn extract(&self, key: String) -> &str;
 }
