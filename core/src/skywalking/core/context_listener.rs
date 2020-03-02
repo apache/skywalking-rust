@@ -26,5 +26,5 @@ pub trait ContextListener {
 
     /// Move the finished and inactive context to the reporter.
     /// The reporter should use async way to transport the data to the backend through HTTP, gRPC or SkyWalking forwarder.
-    fn report_trace(&self, finished_context: TracingContext);
+    fn report_trace(&self, finished_context: Box<TracingContext>);
 }

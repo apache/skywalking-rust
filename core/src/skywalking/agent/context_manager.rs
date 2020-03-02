@@ -19,6 +19,7 @@ use lazy_static::lazy_static;
 
 use crate::skywalking::agent::reporter::Reporter;
 use crate::skywalking::core::{Context, ContextListener, Extractable, Span, TracingContext};
+use crate::skywalking::core::span::TracingSpan;
 
 thread_local!( static CTX: RefCell<CurrentTracingContext> = RefCell::new(CurrentTracingContext::new()));
 lazy_static! {
@@ -30,39 +31,65 @@ lazy_static! {
 pub struct ContextManager {}
 
 impl ContextManager {
-    pub fn createEntrySpan(operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) {
+    pub fn tracing_entry<F>(operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>, f: F)
+        where F: FnOnce(Box<dyn Span>) -> Box<dyn Span> {
         CTX.with(|context| {
-            context.borrow_mut().createEntrySpan(operation_name, parent, extractor);
+            let span = context.borrow_mut().create_entry_span(operation_name, parent, extractor);
+            match span {
+                None => {}
+                Some(s) => {
+                    let s = f(s);
+                    let is_first_span = s.span_id() == 0;
+                    context.borrow_mut().finish_span(s);
+
+                    if is_first_span { context.borrow_mut().finish() }
+                }
+            }
         });
     }
 }
 
 struct CurrentTracingContext {
-    context: Option<Box<TracingContext>>,
-    active_spans: Box<Vec<Rc<Box<dyn Span>>>>,
+    option: Option<Box<WorkingContext>>,
+}
+
+struct WorkingContext {
+    context: Box<TracingContext>,
 }
 
 impl CurrentTracingContext {
     fn new() -> Self {
         CurrentTracingContext {
-            context: match TracingContext::new(SKYWALKING_REPORTER.service_instance_id()) {
-                Some(tx) => { Some(Box::new(tx)) }
+            option: match TracingContext::new(SKYWALKING_REPORTER.service_instance_id()) {
+                Some(tx) => {
+                    Some(Box::new(WorkingContext {
+                        context: Box::new(tx)
+                    }))
+                }
                 None => { None }
             },
-            active_spans: Box::new(Vec::new()),
         }
     }
 
-    pub fn createEntrySpan(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) -> Option<Rc<Box<dyn Span>>> {
-        match self.context.borrow_mut() {
+    fn create_entry_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) -> Option<Box<dyn Span>> {
+        match self.option.borrow_mut() {
             None => { None }
-            Some(txt) => {
-                let mut span = Rc::new(txt.create_entry_span(operation_name, parent, extractor));
-                let response = Rc::clone(&span);
-                self.active_spans.push(span);
-                Some(response)
+            Some(wx) => {
+                Some(wx.context.create_entry_span(operation_name, parent, extractor))
             }
         }
+    }
+
+    fn finish_span(&mut self, span: Box<dyn Span>) {
+        match self.option.borrow_mut() {
+            None => {}
+            Some(wx) => {
+                wx.context.finish_span(span);
+            }
+        };
+    }
+
+    fn finish(&mut self) {
     }
 }
 
@@ -70,11 +97,14 @@ impl CurrentTracingContext {
 #[cfg(test)]
 mod context_tests {
     use crate::skywalking::agent::context_manager::*;
-    use crate::skywalking::core::{ContextListener, TracingContext};
+    use crate::skywalking::core::{ContextListener, Tag, TracingContext};
 
     #[test]
-    fn test_static_reporter() {
-//REPORTER.set_reporter(Box::new(MockReporter {}));
+    fn test_context_manager() {
+        ContextManager::tracing_entry("op1", None, None, |mut span| {
+            span.tag(Tag::new(String::from("tag1"), String::from("value1")));
+            span
+        });
     }
 
     struct MockReporter {}
@@ -84,6 +114,6 @@ mod context_tests {
             Some(1)
         }
 
-        fn report_trace(&self, finished_context: TracingContext) {}
+        fn report_trace(&self, finished_context: Box<TracingContext>) {}
     }
 }

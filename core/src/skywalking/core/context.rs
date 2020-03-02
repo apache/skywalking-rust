@@ -180,7 +180,7 @@ mod context_tests {
         }
         context.finish_span(span1);
 
-        reporter.report_trace(context);
+        reporter.report_trace(Box::new(context));
         // context has moved into reporter. Can't be used again.
 
         let received_context = reporter.recv.recv().unwrap();
@@ -190,13 +190,13 @@ mod context_tests {
 
     #[test]
     fn test_no_context() {
-        let context = TracingContext::new(Some(1));
+        let context = TracingContext::new(None);
         assert_eq!(context.is_none(), true);
     }
 
     struct MockReporter {
-        sender: Box<Sender<TracingContext>>,
-        recv: Box<Receiver<TracingContext>>,
+        sender: Box<Sender<Box<TracingContext>>>,
+        recv: Box<Receiver<Box<TracingContext>>>,
     }
 
     impl MockReporter {
@@ -214,7 +214,7 @@ mod context_tests {
             Some(1)
         }
 
-        fn report_trace(&self, finished_context: TracingContext) {
+        fn report_trace(&self, finished_context: Box<TracingContext>) {
             self.sender.send(finished_context);
         }
     }

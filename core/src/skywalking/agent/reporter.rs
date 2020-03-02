@@ -15,16 +15,14 @@
 
 use crate::skywalking::core::{ContextListener, TracingContext};
 
-pub struct Reporter {
-
-}
+pub struct Reporter {}
 
 impl ContextListener for Reporter {
     fn service_instance_id(&self) -> Option<i32> {
-        unimplemented!()
+        Some(1)
     }
 
-    fn report_trace(&self, finished_context: TracingContext) {
+    fn report_trace(&self, finished_context: Box<TracingContext>) {
         unimplemented!()
     }
 }
