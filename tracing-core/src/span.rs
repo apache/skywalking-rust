@@ -20,7 +20,12 @@ use crate::segment_ref::SegmentRef;
 use crate::Tag;
 
 /// Span is one of the tracing concept, representing a time duration.
-/// Span typically used in the certain scope, Typically, it represent a method invocation or a RPC.
+///Span is an important and common concept in distributed tracing system. Learn Span from Google Dapper Paper.
+/// For better performance, we extend the span into 3 kinds.
+///
+/// 1. EntrySpan EntrySpan represents a service provider, also the endpoint of server side. As an APM system, we are targeting the application servers. So almost all the services and MQ-consumer are EntrySpan(s).
+/// 2. LocalSpan LocalSpan represents a normal Java method, which does not relate to remote service, neither a MQ producer/consumer nor a service(e.g. HTTP service) provider/consumer.
+/// 3. ExitSpan ExitSpan represents a client of service or MQ-producer, as named as LeafSpan at early age of SkyWalking. e.g. accessing DB by JDBC, reading Redis/Memcached are cataloged an ExitSpan.
 pub trait Span {
     /// Start the span with the current system time
     fn start(&mut self);
@@ -86,30 +91,30 @@ pub struct TracingSpan {
 /// Tracing Span is only created inside TracingContext.
 impl TracingSpan {
     /// Create a new entry span
-    pub fn new_entry_span(operation_name: String, span_id: i32, parent_span_id: i32) -> TracingSpan {
+    pub fn new_entry_span(operation_name: &str, span_id: i32, parent_span_id: i32) -> TracingSpan {
         let mut span = TracingSpan::_new(operation_name, span_id, parent_span_id);
         span.is_entry = true;
         span
     }
 
     /// Create a new exit span
-    pub fn new_exit_span(operation_name: String, span_id: i32, parent_span_id: i32, peer: String) -> TracingSpan {
+    pub fn new_exit_span(operation_name: &str, span_id: i32, parent_span_id: i32, peer: &str) -> TracingSpan {
         let mut span = TracingSpan::_new(operation_name, span_id, parent_span_id);
         span.is_exit = true;
-        span.peer = Some(peer);
+        span.peer = Some(String::from(peer));
         span
     }
 
     /// Create a new local span
-    pub fn new_local_span(operation_name: String, span_id: i32, parent_span_id: i32) -> TracingSpan {
+    pub fn new_local_span(operation_name: &str, span_id: i32, parent_span_id: i32) -> TracingSpan {
         let span = TracingSpan::_new(operation_name, span_id, parent_span_id);
         span
     }
 
     /// Create a span
-    fn _new(operation_name: String, span_id: i32, parent_span_id: i32) -> Self {
+    fn _new(operation_name: &str, span_id: i32, parent_span_id: i32) -> Self {
         TracingSpan {
-            operation_name,
+            operation_name: String::from(operation_name),
             span_id,
             parent_span_id,
             start_time: 0,
@@ -210,14 +215,14 @@ mod span_tests {
 
     #[test]
     fn test_span_new() {
-        let mut span = TracingSpan::_new(String::from("op1"), 0, -1);
+        let mut span = TracingSpan::_new("op1", 0, -1);
         assert_eq!(span.parent_span_id, -1);
         assert_eq!(span.span_id, 0);
         assert_eq!(span.start_time, 0);
         span.start();
         assert_ne!(span.start_time, 0);
 
-        let mut span2 = TracingSpan::_new(String::from("op2"), 1, 0);
+        let mut span2 = TracingSpan::_new("op2", 1, 0);
         assert_eq!("op2", span2.operation_name);
         assert_eq!(span2.parent_span_id, 0);
         assert_eq!(span2.span_id, 1);
@@ -227,13 +232,13 @@ mod span_tests {
 
     #[test]
     fn test_new_entry_span() {
-        let span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
+        let span = TracingSpan::new_entry_span("op1", 0, 1);
         assert_eq!(span.is_entry(), true)
     }
 
     #[test]
     fn test_span_with_tags() {
-        let mut span = TracingSpan::new_entry_span(String::from("op1"), 0, 1);
+        let mut span = TracingSpan::new_entry_span("op1", 0, 1);
         span.tag(Tag::new(String::from("tag1"), String::from("value1")));
         span.tag(Tag::new(String::from("tag2"), String::from("value2")));
 
@@ -244,7 +249,7 @@ mod span_tests {
 
     #[test]
     fn test_span_with_logs() {
-        let mut span = TracingSpan::_new(String::from("op1"), 0, -1);
+        let mut span = TracingSpan::_new("op1", 0, -1);
 
         span.log(LogEvent::new(123, Box::new([
             { EventField::new(String::from("event1"), String::from("event description")) },
