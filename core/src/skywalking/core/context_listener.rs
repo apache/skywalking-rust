@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::TracingContext;
+use crate::skywalking::core::TracingContext;
 
 ///Report bridge defines the traits for the skywalking-report
 

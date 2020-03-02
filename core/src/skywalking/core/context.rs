@@ -15,11 +15,12 @@
 
 use base64::{decode, encode};
 
-use crate::{ContextListener, ID, Span};
-use crate::context_carrier::{Extractable, Injectable};
-use crate::id::IDGenerator;
-use crate::segment_ref::SegmentRef;
-use crate::span::TracingSpan;
+use crate::skywalking::agent::reporter::Reporter;
+use crate::skywalking::core::{ID, Span};
+use crate::skywalking::core::context_carrier::{Extractable, Injectable};
+use crate::skywalking::core::id::IDGenerator;
+use crate::skywalking::core::segment_ref::SegmentRef;
+use crate::skywalking::core::span::TracingSpan;
 
 /// Context represents the context of a tracing process.
 /// All new span belonging to this tracing context should be created through this context.
@@ -51,9 +52,8 @@ pub struct TracingContext {
 
 impl TracingContext {
     /// Create a new instance
-    pub fn new(reporter: &dyn ContextListener) -> Option<TracingContext> {
-        let instance_id = reporter.service_instance_id();
-        match instance_id {
+    pub fn new(service_instance_id: Option<i32>) -> Option<TracingContext> {
+        match service_instance_id {
             None => { None }
             Some(id) => {
                 Some(TracingContext {
@@ -158,12 +158,12 @@ mod context_tests {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use crate::{Context, ContextListener, Extractable, ID, Injectable, Tag, TracingContext};
+    use crate::skywalking::core::{Context, ContextListener, Extractable, ID, Injectable, Tag, TracingContext};
 
     #[test]
     fn test_context_stack() {
         let reporter = MockReporter::new();
-        let mut context = TracingContext::new(&reporter).unwrap();
+        let mut context = TracingContext::new(reporter.service_instance_id()).unwrap();
         let span1 = context.create_entry_span("op1", None, Some(&MockerHeader {}));
         {
             assert_eq!(span1.span_id(), 0);
@@ -171,7 +171,7 @@ mod context_tests {
             span2.tag(Tag::new(String::from("tag1"), String::from("value1")));
             {
                 assert_eq!(span2.span_id(), 1);
-                let mut span3 = context.create_exit_span("op3", Some(&span2), "127.0.0.1:8080", Some(&HeaderCarrier {}));
+                let span3 = context.create_exit_span("op3", Some(&span2), "127.0.0.1:8080", Some(&HeaderCarrier {}));
                 assert_eq!(span3.span_id(), 2);
 
                 context.finish_span(span3);
@@ -190,7 +190,7 @@ mod context_tests {
 
     #[test]
     fn test_no_context() {
-        let context = TracingContext::new(&MockRegisterPending {});
+        let context = TracingContext::new(Some(1));
         assert_eq!(context.is_none(), true);
     }
 
@@ -233,18 +233,6 @@ mod context_tests {
         fn inject(&self, key: String, value: String) {
             assert_eq!(key, "sw6");
             assert_eq!(value.len() > 0, true);
-        }
-    }
-
-    struct MockRegisterPending {}
-
-    impl ContextListener for MockRegisterPending {
-        fn service_instance_id(&self) -> Option<i32> {
-            None
-        }
-
-        fn report_trace(&self, finished_context: TracingContext) {
-            unimplemented!()
         }
     }
 }

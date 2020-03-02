@@ -41,7 +41,7 @@ impl Tag {
 
 #[cfg(test)]
 mod tag_tests {
-    use crate::Tag;
+    use crate::skywalking::core::Tag;
 
     #[test]
     fn test_tag_new() {
