@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -31,18 +31,21 @@ lazy_static! {
 pub struct ContextManager {}
 
 impl ContextManager {
-    pub fn tracing_entry<F>(operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>, f: F)
+    pub fn tracing_entry<F>(operation_name: &str, extractor: Option<&dyn Extractable>, f: F)
         where F: FnOnce(Box<dyn Span>) -> Box<dyn Span> {
         CTX.with(|context| {
-            let span = context.borrow_mut().create_entry_span(operation_name, parent, extractor);
+            let span = context.borrow_mut().create_entry_span(operation_name, context.borrow().parent_span_id(), extractor);
             match span {
                 None => {}
                 Some(s) => {
                     let s = f(s);
+
                     let is_first_span = s.span_id() == 0;
                     context.borrow_mut().finish_span(s);
 
-                    if is_first_span { context.borrow_mut().finish() }
+                    if is_first_span {
+                        context.borrow_mut().finish();
+                    }
                 }
             }
         });
@@ -55,6 +58,7 @@ struct CurrentTracingContext {
 
 struct WorkingContext {
     context: Box<TracingContext>,
+    span_stack: Vec<i32>,
 }
 
 impl CurrentTracingContext {
@@ -63,7 +67,8 @@ impl CurrentTracingContext {
             option: match TracingContext::new(SKYWALKING_REPORTER.service_instance_id()) {
                 Some(tx) => {
                     Some(Box::new(WorkingContext {
-                        context: Box::new(tx)
+                        context: Box::new(tx),
+                        span_stack: Vec::new(),
                     }))
                 }
                 None => { None }
@@ -71,11 +76,13 @@ impl CurrentTracingContext {
         }
     }
 
-    fn create_entry_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) -> Option<Box<dyn Span>> {
+    fn create_entry_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, extractor: Option<&dyn Extractable>) -> Option<Box<dyn Span>> {
         match self.option.borrow_mut() {
             None => { None }
             Some(wx) => {
-                Some(wx.context.create_entry_span(operation_name, parent, extractor))
+                let span = wx.context.create_entry_span(operation_name, parent_span_id, extractor);
+                wx.span_stack.push(span.span_id());
+                Some(span)
             }
         }
     }
@@ -85,11 +92,34 @@ impl CurrentTracingContext {
             None => {}
             Some(wx) => {
                 wx.context.finish_span(span);
+                wx.span_stack.pop();
             }
         };
     }
 
+    fn parent_span_id(&self) -> Option<i32> {
+        match self.option.borrow() {
+            None => { None }
+            Some(wx) => {
+                match wx.span_stack.last() {
+                    None => { None }
+                    Some(span_id) => { Some(span_id.clone()) }
+                }
+            }
+        }
+    }
+
     fn finish(&mut self) {
+        match self.option.borrow_mut() {
+            None => {}
+            Some(wx) => {
+                let tracingContext = &wx.context;
+                wx.span_stack.clear();
+
+                // TODO: Transfer tracingContext to protobuf
+            }
+        }
+        self.option = None;
     }
 }
 
@@ -101,7 +131,7 @@ mod context_tests {
 
     #[test]
     fn test_context_manager() {
-        ContextManager::tracing_entry("op1", None, None, |mut span| {
+        ContextManager::tracing_entry("op1", None, |mut span| {
             span.tag(Tag::new(String::from("tag1"), String::from("value1")));
             span
         });

@@ -26,11 +26,11 @@ use crate::skywalking::core::span::TracingSpan;
 /// All new span belonging to this tracing context should be created through this context.
 pub trait Context {
     /// Create an entry span belonging this context
-    fn create_entry_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) -> Box<dyn Span>;
+    fn create_entry_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, extractor: Option<&dyn Extractable>) -> Box<dyn Span>;
     /// Create an exit span belonging this context
-    fn create_exit_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, peer: &str, injector: Option<&dyn Injectable>) -> Box<dyn Span>;
+    fn create_exit_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, peer: &str, injector: Option<&dyn Injectable>) -> Box<dyn Span>;
     /// Create an local span belonging this context
-    fn create_local_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>) -> Box<dyn Span>;
+    fn create_local_span(&mut self, operation_name: &str, parent_span_id: Option<i32>) -> Box<dyn Span>;
     /// Finish the given span. The span is only being accept if it belongs to this context.
     /// Return err if the span was created by another context.
     fn finish_span(&mut self, span: Box<dyn Span>);
@@ -100,10 +100,10 @@ impl TracingContext {
 
 /// Default implementation of Context
 impl Context for TracingContext {
-    fn create_entry_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, extractor: Option<&dyn Extractable>) -> Box<dyn Span> {
-        let mut entry_span = TracingSpan::new_entry_span(operation_name, self.next_span_id(), match parent {
+    fn create_entry_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, extractor: Option<&dyn Extractable>) -> Box<dyn Span> {
+        let mut entry_span = TracingSpan::new_entry_span(operation_name, self.next_span_id(), match parent_span_id {
             None => { -1 }
-            Some(s) => { s.span_id() }
+            Some(s) => { s }
         });
 
         if extractor.is_some() {
@@ -125,10 +125,10 @@ impl Context for TracingContext {
         Box::new(entry_span)
     }
 
-    fn create_exit_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>, peer: &str, injector: Option<&dyn Injectable>) -> Box<dyn Span> {
-        let exit_span = TracingSpan::new_exit_span(operation_name, self.next_span_id(), match parent {
+    fn create_exit_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, peer: &str, injector: Option<&dyn Injectable>) -> Box<dyn Span> {
+        let exit_span = TracingSpan::new_exit_span(operation_name, self.next_span_id(), match parent_span_id {
             None => { -1 }
-            Some(s) => { s.span_id() }
+            Some(s) => { s }
         }, peer);
 
         if injector.is_some() {
@@ -138,10 +138,10 @@ impl Context for TracingContext {
         Box::new(exit_span)
     }
 
-    fn create_local_span(&mut self, operation_name: &str, parent: Option<&Box<dyn Span>>) -> Box<dyn Span> {
-        Box::new(TracingSpan::new_local_span(operation_name, self.next_span_id(), match parent {
+    fn create_local_span(&mut self, operation_name: &str, parent_span_id: Option<i32>) -> Box<dyn Span> {
+        Box::new(TracingSpan::new_local_span(operation_name, self.next_span_id(), match parent_span_id {
             None => { -1 }
-            Some(s) => { s.span_id() }
+            Some(s) => { s }
         }))
     }
 
@@ -167,11 +167,11 @@ mod context_tests {
         let span1 = context.create_entry_span("op1", None, Some(&MockerHeader {}));
         {
             assert_eq!(span1.span_id(), 0);
-            let mut span2 = context.create_local_span("op2", Some(&span1));
+            let mut span2 = context.create_local_span("op2", Some(span1.span_id()));
             span2.tag(Tag::new(String::from("tag1"), String::from("value1")));
             {
                 assert_eq!(span2.span_id(), 1);
-                let span3 = context.create_exit_span("op3", Some(&span2), "127.0.0.1:8080", Some(&HeaderCarrier {}));
+                let span3 = context.create_exit_span("op3", Some(span2.span_id()), "127.0.0.1:8080", Some(&HeaderCarrier {}));
                 assert_eq!(span3.span_id(), 2);
 
                 context.finish_span(span3);
