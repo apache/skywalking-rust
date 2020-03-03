@@ -21,7 +21,10 @@ use crate::skywalking::agent::reporter::Reporter;
 use crate::skywalking::core::{Context, ContextListener, Extractable, Injectable, Span, TracingContext};
 use crate::skywalking::core::span::TracingSpan;
 
+/// Thread Local tracing context. Host the context and propagate it in each thread if needed.
 thread_local!( static CTX: RefCell<CurrentTracingContext> = RefCell::new(CurrentTracingContext::new()));
+/// Global reporter
+/// Status: WIP
 lazy_static! {
     static ref SKYWALKING_REPORTER : Reporter = {
         Reporter::new()
@@ -31,6 +34,8 @@ lazy_static! {
 pub struct ContextManager {}
 
 impl ContextManager {
+    /// Run a closure under an entry span observing.
+    /// Span is automatically created, started and ended around the closure f.
     pub fn tracing_entry<F>(operation_name: &str, extractor: Option<&dyn Extractable>, f: F)
         where F: FnOnce(&mut Box<dyn Span>) {
         CTX.with(|context| {
@@ -60,6 +65,8 @@ impl ContextManager {
         });
     }
 
+    /// Run a closure under an exit span observing.
+    /// Span is automatically created, started and ended around the closure f.
     pub fn tracing_exit<F>(operation_name: &str, peer: &str, injector: Option<&dyn Injectable>, f: F)
         where F: FnOnce(&mut Box<dyn Span>) {
         CTX.with(|context| {
@@ -90,6 +97,8 @@ impl ContextManager {
         });
     }
 
+    /// Run a closure under a local span observing.
+    /// Span is automatically created, started and ended around the closure f.
     pub fn tracing_local<F>(operation_name: &str, f: F)
         where F: FnOnce(&mut Box<dyn Span>) {
         CTX.with(|context| {
@@ -131,6 +140,7 @@ struct WorkingContext {
 }
 
 impl CurrentTracingContext {
+    /// Create the tracing context in the thread local at the first time.
     fn new() -> Self {
         CurrentTracingContext {
             option: match TracingContext::new(SKYWALKING_REPORTER.service_instance_id()) {
@@ -145,6 +155,7 @@ impl CurrentTracingContext {
         }
     }
 
+    /// Delegate to the tracing core entry span creation method, if current context is valid.
     fn create_entry_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, extractor: Option<&dyn Extractable>) -> Option<Box<dyn Span>> {
         match self.option.borrow_mut() {
             None => { None }
@@ -156,6 +167,7 @@ impl CurrentTracingContext {
         }
     }
 
+    /// Delegate to the tracing core exit span creation method, if current context is valid.
     fn create_exit_span(&mut self, operation_name: &str, parent_span_id: Option<i32>, peer: &str, injector: Option<&dyn Injectable>) -> Option<Box<dyn Span>> {
         match self.option.borrow_mut() {
             None => { None }
@@ -167,6 +179,7 @@ impl CurrentTracingContext {
         }
     }
 
+    /// Delegate to the tracing core local span creation method, if current context is valid.
     fn create_local(&mut self, operation_name: &str, parent_span_id: Option<i32>) -> Option<Box<dyn Span>> {
         match self.option.borrow_mut() {
             None => { None }
@@ -178,6 +191,7 @@ impl CurrentTracingContext {
         }
     }
 
+    /// Delegate to the tracing core span finish method, if current context is valid.
     fn finish_span(&mut self, span: Box<dyn Span>) {
         match self.option.borrow_mut() {
             None => {}
@@ -188,6 +202,8 @@ impl CurrentTracingContext {
         };
     }
 
+    /// Fetch the parent span id, to be used in next new span.
+    /// The span id(s) are saved in the span_stack by following as same the stack-style as span creation sequence.
     fn parent_span_id(&self) -> Option<i32> {
         match self.option.borrow() {
             None => { None }
@@ -200,6 +216,9 @@ impl CurrentTracingContext {
         }
     }
 
+    /// Finish the current tracing context, including
+    /// 1. Clear up the context
+    /// 2. Transfer the context to profobuf format and pass to reporter.
     fn finish(&mut self) {
         match self.option.borrow_mut() {
             None => {}
