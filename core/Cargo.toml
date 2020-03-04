@@ -13,8 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[workspace]
+[package]
+name = "skywalking-core"
+version = "0.1.0"
+authors = ["Apache Software Foundation (ASF)"]
+edition = "2018"
+description = "SkyWalking tracing core APIs. Provide the way to build SkyWalking native format traces/spans and propagated context."
+license = "Apache 2.0"
 
-members = [
-    "core",
-]
+[dependencies]
+rand = "0.7.3"
+base64 = "0.11.0"
+lazy_static = "1.4.0"

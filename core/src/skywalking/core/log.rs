@@ -47,7 +47,7 @@ impl EventField {
 
 #[cfg(test)]
 mod log_tests {
-    use crate::log::{EventField, LogEvent};
+    use crate::skywalking::core::log::{EventField, LogEvent};
 
     #[test]
     fn test_log_new() {

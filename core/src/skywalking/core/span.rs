@@ -15,9 +15,9 @@
 
 use std::time::SystemTime;
 
-use crate::log::LogEvent;
-use crate::segment_ref::SegmentRef;
-use crate::Tag;
+use crate::skywalking::core::log::LogEvent;
+use crate::skywalking::core::segment_ref::SegmentRef;
+use crate::skywalking::core::Tag;
 
 /// Span is one of the tracing concept, representing a time duration.
 ///Span is an important and common concept in distributed tracing system. Learn Span from Google Dapper Paper.
@@ -209,9 +209,9 @@ impl Span for TracingSpan {
 mod span_tests {
     use std::time::SystemTime;
 
-    use crate::log::{EventField, LogEvent};
-    use crate::span::*;
-    use crate::Tag;
+    use crate::skywalking::core::log::{EventField, LogEvent};
+    use crate::skywalking::core::span::*;
+    use crate::skywalking::core::Tag;
 
     #[test]
     fn test_span_new() {

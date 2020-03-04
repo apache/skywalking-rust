@@ -15,8 +15,8 @@
 
 use std::os::raw::c_long;
 
-use crate::{ID, Span, TracingContext};
-use crate::segment_ref::SegmentRefType::CROSS_PROCESS;
+use crate::skywalking::core::{ID, Span, TracingContext};
+use crate::skywalking::core::segment_ref::SegmentRefType::CROSS_PROCESS;
 
 #[derive(Clone, Hash)]
 pub struct SegmentRef {
@@ -214,8 +214,8 @@ impl SegmentRef {
 
 #[cfg(test)]
 mod segment_ref_tests {
-    use crate::ID;
-    use crate::segment_ref::SegmentRef;
+    use crate::skywalking::core::ID;
+    use crate::skywalking::core::segment_ref::SegmentRef;
 
     #[test]
     fn test_deserialize_context_carrier() {

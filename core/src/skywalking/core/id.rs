@@ -85,8 +85,8 @@ impl ToString for ID {
 
 #[cfg(test)]
 mod id_tests {
-    use crate::ID;
-    use crate::id::IDGenerator;
+    use crate::skywalking::core::ID;
+    use crate::skywalking::core::id::IDGenerator;
 
     #[test]
     fn test_id_generator() {

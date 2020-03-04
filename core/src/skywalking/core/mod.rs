@@ -13,18 +13,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::TracingContext;
+pub use context::Context;
+pub use context::TracingContext;
+pub use context_carrier::Extractable;
+pub use context_carrier::Injectable;
+pub use context_listener::ContextListener;
+pub use id::ID;
+pub use log::EventField;
+pub use log::LogEvent;
+pub use span::Span;
+pub use tag::Tag;
 
-///Report bridge defines the traits for the skywalking-report
-
-/// Register implementation communicate with the SkyWalking OAP backend.
-/// It does metadata register, traces report, and runtime status report or interaction.
-pub trait ContextListener {
-    /// Return the registered service id
-    /// If haven't registered successfully, return None.
-    fn service_instance_id(&self) -> Option<i32>;
-
-    /// Move the finished and inactive context to the reporter.
-    /// The reporter should use async way to transport the data to the backend through HTTP, gRPC or SkyWalking forwarder.
-    fn report_trace(&self, finished_context: TracingContext);
-}
+pub mod span;
+pub mod context;
+pub mod tag;
+pub mod id;
+pub mod context_listener;
+pub mod log;
+pub mod context_carrier;
+pub mod segment_ref;

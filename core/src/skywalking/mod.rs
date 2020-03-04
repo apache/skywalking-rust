@@ -13,23 +13,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use context::Context;
-pub use context::TracingContext;
-pub use context_carrier::Extractable;
-pub use context_carrier::Injectable;
-pub use context_listener::ContextListener;
-pub use id::ID;
-pub use log::EventField;
-pub use log::LogEvent;
-pub use span::Span;
-pub use tag::Tag;
-
-pub mod span;
-pub mod context;
-pub mod tag;
-pub mod id;
-pub mod context_listener;
-pub mod log;
-pub mod context_carrier;
-pub mod segment_ref;
-
+pub mod core;
+pub mod agent;

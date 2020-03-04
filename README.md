@@ -37,23 +37,43 @@ manipulate the RPC header/metadata to make the key/value sent to the server side
 
 ## Extractable
 Extractable is used(optional) when the entry span creates. The Extractable fetches the value of the given key from the propagated
-context. Typically, Extractable implementation would read the RPC header/metadata, which sent from the client side.   
+context. Typically, Extractable implementation would read the RPC header/metadata, which sent from the client side. 
 
 # APIs
-## Tracing Core APIs
+## High-Level APIs
+High level APIs are targeting convenient usages. These APIs use the ThreadLocal to propagate the context, so users could
+create span at any moment, and the context will finish automatically once the first created span of this thread stopped.
+
+```rust
+ContextManager::tracing_entry("op1", Some(&injector), |mut span| {
+    // Use span freely in this closure
+    // Span's start/end time is set automatically with this closure start/end(s).
+    span.tag(Tag::new(String::from("tag1"), String::from("value1")));
+
+    ContextManager::tracing_exit("op2", "127.0.0.1:8080", Some(&extractor), |mut span| {
+        span.set_component_id(33);
+    });
+
+    ContextManager::tracing_local("op3", |mut span| {});
+});
+```
+
+## Low-Level Core APIs
 Tracing core APIs are 100% manual control tracing APIs. Users could use them to trace any process by following SkyWalking
 core concepts.
 
+Low Level APIs request users to create and hold the context and span by the codes manually.
+
 ```rust
-let mut context = TracingContext::new(&reporter).unwrap();
-let span1 = context.create_entry_span("op1", None, Some(&MockerHeader {}));
+let mut context = TracingContext::new(reporter.service_instance_id()).unwrap();
+let span1 = context.create_entry_span("op1", None, Some(&dyn injector));
 {
     assert_eq!(span1.span_id(), 0);
     let mut span2 = context.create_local_span("op2", Some(&span1));
     span2.tag(Tag::new(String::from("tag1"), String::from("value1")));
     {
         assert_eq!(span2.span_id(), 1);
-        let mut span3 = context.create_exit_span("op3", Some(&span2), "127.0.0.1:8080", Some(&HeaderCarrier {}));
+        let mut span3 = context.create_exit_span("op3", Some(&span2), "127.0.0.1:8080", Some(&dyn extractor));
         assert_eq!(span3.span_id(), 2);
 
         context.finish_span(span3);
