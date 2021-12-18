@@ -1,0 +1,65 @@
+version: "3.7"
+services:
+  # Skywalking components.
+  elasticsearch:
+    image: elasticsearch:7.9.2
+    restart: always
+    ports:
+      - 9200:9200
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+      discovery.type: single-node
+    expose:
+      - "9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+  consul:
+    image: docker.io/bitnami/consul:1-debian-10
+    ports:
+      - '8300:8300'
+      - '8301:8301'
+      - '8301:8301/udp'
+      - '8500:8500'
+      - '8600:8600'
+      - '8600:8600/udp'
+  oap:
+    image: apache/skywalking-oap-server:8.6.0-es7
+    depends_on:
+      - elasticsearch
+    links:
+      - elasticsearch
+    ports:
+      - 11800:11800
+      - 12800:12800
+    environment:
+      SW_STORAGE: elasticsearch7
+      SW_STORAGE_ES_CLUSTER_NODES: elasticsearch:9200
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "/skywalking/bin/swctl"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - consul
+      - elasticsearch
+  ui:
+    image: apache/skywalking-ui:8.6.0
+    depends_on:
+      - oap
+    links:
+      - oap
+    ports:
+      - 8080:8080
+    environment:
+      SW_OAP_ADDRESS: oap:12800
+    depends_on:
+      - oap

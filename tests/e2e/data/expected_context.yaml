@@ -1,0 +1,56 @@
+segmentItems:
+- segmentSize: 1
+  segments:
+  - segmentId: not null
+    spans:
+    - componentId: 11000
+      endTime: gt 0
+      isError: false
+      operationId: 0
+      operationName: /pong
+      parentSpanId: 1
+      peer: consumer:8082
+      skipAnalysis: false
+      spanId: 2
+      spanLayer: Http
+      spanType: Exit
+      startTime: gt 0
+    - componentId: 11000
+      endTime: gt 0
+      isError: false
+      operationId: 0
+      operationName: /ping
+      parentSpanId: 0
+      peer: ''
+      skipAnalysis: false
+      spanId: 1
+      spanLayer: Http
+      spanType: Entry
+      startTime: gt 0
+  serviceName: producer
+- segmentSize: 1
+  segments:
+  - segmentId: not null
+    spans:
+    - componentId: 11000
+      endTime: gt 0
+      isError: false
+      operationId: 0
+      operationName: /pong
+      parentSpanId: 0
+      peer: ''
+      refs:
+      - networkAddress: consumer:8082
+        parentEndpoint: /pong
+        parentService: producer
+        parentServiceInstance: node_0
+        parentSpanId: 2
+        parentTraceSegmentId: not null
+        refType: CrossProcess
+        traceId: not null
+      skipAnalysis: false
+      spanId: 1
+      spanLayer: Http
+      spanType: Entry
+      startTime: gt 0
+  serviceName: consumer

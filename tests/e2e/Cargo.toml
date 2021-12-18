@@ -1,0 +1,13 @@
+[package]
+name = "e2e"
+version = "0.1.0"
+authors = ["Shikugawa <Shikugawa@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+skywalking_rust = { path = "../../" }
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+structopt = "0.3"
