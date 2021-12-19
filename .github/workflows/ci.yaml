@@ -11,19 +11,14 @@ on:
 
 jobs:
   CI:
-    runs-on: ubuntu-18.04
-    timeout-minutes: 180
-    strategy:
-      fail-fast: true
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-        with:
-          submodules: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
-      - name: 'Install & Test'
+      - uses: actions/checkout@v2
+      - name: install Rust
         run: |
-          cargo build
-          cargo test
+          git submodule update --init --recursive
+          rustup toolchain install stable --component clippy --component rustfmt
+      - name: Format
+        run: cargo fmt -- --check
+      - name: clippy
+        run: cargo clippy
