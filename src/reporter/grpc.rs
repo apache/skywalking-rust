@@ -36,6 +36,8 @@ pub struct Reporter {}
 
 static CHANNEL_BUF_SIZE: usize = 1024;
 
+pub type ContextReporter = mpsc::Sender<TracingContext>;
+
 impl Reporter {
     /// Open gRPC client stream to send collected trace context.
     /// This function generates a new async task which watch to arrive new trace context.
@@ -52,7 +54,7 @@ impl Reporter {
     ///     tx.send(context).await;
     /// }
     /// ```
-    pub async fn start(address: &str) -> mpsc::Sender<TracingContext> {
+    pub async fn start(address: &str) -> ContextReporter {
         let (tx, mut rx): (mpsc::Sender<TracingContext>, mpsc::Receiver<TracingContext>) =
             mpsc::channel(CHANNEL_BUF_SIZE);
         let mut reporter = ReporterClient::connect(address.to_string()).await.unwrap();

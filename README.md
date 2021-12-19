@@ -37,15 +37,34 @@ use skywalking_rust::context::trace_context::TracingContext;
 use skywalking_rust::reporter::grpc::Reporter;
 use tokio;
 
+async fn handle_request(reporter: ContextReporter) {
+    let mut ctx = TracingContext::default("svc", "ins");
+    {
+        // Generate an Entry Span when a request
+        // is received. An Entry Span is generated only once per context.
+        let span = ctx.create_entry_span("operation1").unwrap();
+
+        // Something...
+
+        {
+            // Generates an Exit Span when executing an RPC.
+            let span2 = ctx.create_exit_span("operation2").unwrap();
+            
+            // Something...
+
+            ctx.finalize_span(span2);
+        }
+
+        ctx.finalize_span(span);
+    }
+    reporter.send(context).await;
+}
+
 #[tokio::main]
 async fn main() {
     let tx = Reporter::start("http://0.0.0.0:11800".to_string()).await;
-    let mut context = TracingContext::default("service", "instance");
-    {
-        let span = context.create_entry_span("op1").unwrap();
-        context.finalize_span(span);
-    }
-    tx.send(context).await;
+
+    // Start server...
 }
 ```
 
