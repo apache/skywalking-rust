@@ -25,10 +25,41 @@ use std::sync::Arc;
 
 use super::system_time::UnixTimeStampFetcher;
 
+/// Span is a concept that represents trace information for a single RPC.
+/// The Rust SDK supports Entry Span to represent inbound to a service
+/// and Exit Span to represent outbound from a service.
+///
+/// # Example
+///
+/// ```
+/// async fn handle_request() {
+///     let mut ctx = TracingContext::default("svc", "ins");
+///     {
+///         // Generate an Entry Span when a request
+///         // is received. An Entry Span is generated only once per context.
+///         let span = ctx.create_entry_span("operation1").unwrap();
+///         
+///         // Something...
+///         
+///         {
+///             // Generates an Exit Span when executing an RPC.
+///             let span2 = ctx.create_exit_span("operation2").unwrap();
+///             
+///             // Something...
+///
+///             ctx.finalize_span(span2);
+///         }
+///
+///         ctx.finalize_span(span);
+///     }
+/// }
+/// ```
 pub struct Span {
     span_internal: SpanObject,
     time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
 }
+
+static SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
     pub fn new(
@@ -50,9 +81,7 @@ impl Span {
             peer: remote_peer,
             span_type: span_type as i32,
             span_layer: span_layer as i32,
-            // TODO(shikugawa): define this value in
-            // https://github.com/apache/skywalking/blob/6452e0c2d983c85c392602d50436e8d8e421fec9/oap-server/server-starter/src/main/resources/component-libraries.yml
-            component_id: 11000,
+            component_id: SKYWALKING_RUST_COMPONENT_ID,
             is_error: false,
             tags: Vec::<KeyStringValuePair>::new(),
             logs: Vec::<Log>::new(),
@@ -65,7 +94,7 @@ impl Span {
         }
     }
 
-    // TODO(shikugawa): not to call `close()` explicitly.
+    /// Close span. It only registers end time to the span.
     pub fn close(&mut self) {
         self.span_internal.end_time = self.time_fetcher.get();
     }
@@ -74,6 +103,7 @@ impl Span {
         &self.span_internal
     }
 
+    /// Add logs to the span.
     pub fn add_log(&mut self, message: Vec<(&str, &str)>) {
         let log = Log {
             time: self.time_fetcher.get(),
@@ -91,6 +121,7 @@ impl Span {
         self.span_internal.logs.push(log);
     }
 
+    /// Add tag to the span.
     pub fn add_tag(&mut self, tag: (&str, &str)) {
         let (key, value) = tag;
         self.span_internal.tags.push(KeyStringValuePair {
