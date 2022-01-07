@@ -45,12 +45,15 @@ impl Reporter {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use tokio;
+    /// use skywalking_rust::context::trace_context::TracingContext;
+    /// use skywalking_rust::reporter::grpc::Reporter;
     ///
     /// #[tokio::main]
-    /// async fn main {
-    ///     let tx = Reporter::start("localhost:12800");
+    /// async fn main (){
+    ///     let tx = Reporter::start("localhost:12800").await;
+    ///     let mut context = TracingContext::default("service", "instance");
     ///     tx.send(context).await;
     /// }
     /// ```

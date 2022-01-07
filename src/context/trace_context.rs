@@ -32,6 +32,8 @@ use super::system_time::UnixTimeStampFetcher;
 /// # Example
 ///
 /// ```
+/// use skywalking_rust::context::trace_context::TracingContext;
+///
 /// async fn handle_request() {
 ///     let mut ctx = TracingContext::default("svc", "ins");
 ///     {
@@ -43,7 +45,7 @@ use super::system_time::UnixTimeStampFetcher;
 ///         
 ///         {
 ///             // Generates an Exit Span when executing an RPC.
-///             let span2 = ctx.create_exit_span("operation2").unwrap();
+///             let span2 = ctx.create_exit_span("operation2", "remote_peer").unwrap();
 ///             
 ///             // Something...
 ///

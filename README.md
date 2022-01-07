@@ -62,7 +62,7 @@ async fn handle_request(reporter: ContextReporter) {
 
 #[tokio::main]
 async fn main() {
-    let tx = Reporter::start("http://0.0.0.0:11800".to_string()).await;
+    let tx = Reporter::start("http://0.0.0.0:11800").await;
 
     // Start server...
 }
