@@ -27,6 +27,7 @@ prost-derive = "0.8.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 base64 = "0.13.0"
 tokio = { version = "1", features = ["full"] }
+tokio-stream = {version = "0.1", features = ["net"]}
 async-stream = "0.3.2"
 
 [build-dependencies]
