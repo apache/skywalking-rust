@@ -125,11 +125,14 @@ struct Opt {
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
-    let tx = Reporter::start("http://collector:19876").await;
+    let reporter = Reporter::start("http://collector:19876").await;
+    let tx = reporter.sender();
 
     if opt.mode == "consumer" {
         run_consumer_service([0, 0, 0, 0], tx).await;
     } else if opt.mode == "producer" {
         run_producer_service([0, 0, 0, 0], tx).await;
     }
+
+    reporter.shutdown().await.unwarp();
 }
