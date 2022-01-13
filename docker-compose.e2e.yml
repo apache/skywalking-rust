@@ -6,7 +6,7 @@ services:
       - "19876:19876"
       - "12800:12800"
     healthcheck:
-      test: ["CMD", "curl", "http://0.0.0.0:12800/healthCheck"]
+      test: [ "CMD", "curl", "http://0.0.0.0:12800/healthCheck" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -15,8 +15,8 @@ services:
     build:
       context: .
       dockerfile: ./tests/e2e/docker/Dockerfile
-    expose: 
-      - 8082
+    ports:
+      - "8082:8082"
     command: --mode consumer
     depends_on:
       collector:
