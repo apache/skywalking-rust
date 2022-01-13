@@ -13,7 +13,6 @@ use structopt::StructOpt;
 use tokio::sync::mpsc;
 
 static NOT_FOUND_MSG: &str = "not found";
-static SUCCESS_MSG: &str = "Success";
 
 async fn handle_ping(
     _req: Request<Body>,
@@ -47,10 +46,6 @@ async fn producer_response(
 ) -> Result<Response<Body>, Infallible> {
     match (_req.method(), _req.uri().path()) {
         (&Method::GET, "/ping") => handle_ping(_req, client, tx).await,
-        (&Method::GET, "/healthCheck") => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::from(SUCCESS_MSG))
-            .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from(NOT_FOUND_MSG))
@@ -101,10 +96,6 @@ async fn consumer_response(
 ) -> Result<Response<Body>, Infallible> {
     match (_req.method(), _req.uri().path()) {
         (&Method::GET, "/pong") => handle_pong(_req, tx).await,
-        (&Method::GET, "/healthCheck") => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::from(SUCCESS_MSG))
-            .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from(NOT_FOUND_MSG))

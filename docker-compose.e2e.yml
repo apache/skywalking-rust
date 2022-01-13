@@ -15,17 +15,12 @@ services:
     build:
       context: .
       dockerfile: ./tests/e2e/docker/Dockerfile
-    ports:
-      - "8082:8082"
+    expose:
+      - 8082
     command: --mode consumer
     depends_on:
       collector:
         condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "curl", "http://0.0.0.0:8082/healthCheck" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   producer:
     build:
@@ -38,4 +33,4 @@ services:
       collector:
         condition: service_healthy
       consumer:
-        condition: service_healthy
+        condition: service_started
