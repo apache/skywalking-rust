@@ -7,6 +7,7 @@ use skywalking_rust::context::propagation::encoder::encode_propagation;
 use skywalking_rust::context::trace_context::TracingContext;
 use skywalking_rust::reporter::grpc::Reporter;
 use std::convert::Infallible;
+use std::error::Error;
 use std::net::SocketAddr;
 use structopt::StructOpt;
 use tokio::sync::mpsc;
@@ -66,7 +67,7 @@ async fn run_producer_service(host: [u8; 4], tx: mpsc::Sender<TracingContext>) {
     });
     let addr = SocketAddr::from((host, 8081));
     let server = Server::bind(&addr).serve(make_svc);
-
+    println!("starting producer on {:?}...", &addr);
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
@@ -110,6 +111,7 @@ async fn run_consumer_service(host: [u8; 4], tx: mpsc::Sender<TracingContext>) {
     let addr = SocketAddr::from((host, 8082));
     let server = Server::bind(&addr).serve(make_svc);
 
+    println!("starting consumer on {:?}...", &addr);
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
@@ -123,7 +125,7 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
     let reporter = Reporter::start("http://collector:19876").await;
     let tx = reporter.sender();
@@ -134,5 +136,6 @@ async fn main() {
         run_producer_service([0, 0, 0, 0], tx).await;
     }
 
-    reporter.shutdown().await.unwarp();
+    reporter.shutdown().await?;
+    Ok(())
 }

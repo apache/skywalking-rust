@@ -1,12 +1,10 @@
 version: "3.7"
 services:
   collector:
-    build:
-      context: .
-      dockerfile: ./tests/e2e/docker/Dockerfile.tool
+    image: ghcr.io/apache/skywalking-agent-test-tool/mock-collector:5acb890f225ca37ee60675ce3e330545e23e3cbc
     ports:
-      - 19876:19876
-      - 12800:12800
+      - "19876:19876"
+      - "12800:12800"
 
   consumer:
     build:
@@ -14,7 +12,7 @@ services:
       dockerfile: ./tests/e2e/docker/Dockerfile
     expose: 
       - 8082
-    command: cargo run -- --mode consumer
+    command: --mode consumer
     depends_on:
       - collector
 
@@ -23,8 +21,8 @@ services:
       context: .
       dockerfile: ./tests/e2e/docker/Dockerfile
     ports:
-      - 8081:8081
-    command: cargo run -- --mode producer
+      - "8081:8081"
+    command: --mode producer
     depends_on:
       - collector
       - consumer

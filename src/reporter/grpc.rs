@@ -58,6 +58,7 @@ impl Reporter {
     ///     let mut context = TracingContext::default("service", "instance");
     ///     reporter.sender().send(context).await?;
     ///     reporter.shutdown().await?;
+    ///     Ok(())
     /// }
     /// ```
     pub async fn start(address: impl Into<String>) -> Self {
