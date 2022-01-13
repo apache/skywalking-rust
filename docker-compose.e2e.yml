@@ -21,6 +21,11 @@ services:
     depends_on:
       collector:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "http://0.0.0.0:8082/healthCheck" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   producer:
     build:
@@ -33,4 +38,4 @@ services:
       collector:
         condition: service_healthy
       consumer:
-        condition: service_started
+        condition: service_healthy
