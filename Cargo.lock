@@ -612,6 +612,7 @@ dependencies = [
  "prost",
  "prost-derive",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "uuid",

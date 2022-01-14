@@ -1,0 +1,25 @@
+name: agent-test-tool
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+
+jobs:
+  e2e-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Prepare service container
+        run: docker-compose -f docker-compose.e2e.yml up --build -d
+      - name: Run e2e
+        run: |
+          pip3 install --upgrade pip
+          pip3 install setuptools
+          pip3 install -r requirements.txt
+          python3 tests/e2e/run_e2e.py --expected_file=tests/e2e/data/expected_context.yaml --max_retry_times=3 --target_path=/ping

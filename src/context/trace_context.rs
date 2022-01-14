@@ -21,6 +21,7 @@ use crate::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use super::system_time::UnixTimeStampFetcher;
@@ -59,6 +60,14 @@ use super::system_time::UnixTimeStampFetcher;
 pub struct Span {
     span_internal: SpanObject,
     time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
+}
+
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Span")
+            .field("span_internal", &self.span_internal)
+            .finish()
+    }
 }
 
 static SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
@@ -146,6 +155,19 @@ pub struct TracingContext {
     pub spans: Vec<Box<Span>>,
     time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
     segment_link: Option<PropagationContext>,
+}
+
+impl std::fmt::Debug for TracingContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TracingContext")
+            .field("trace_id", &self.trace_id)
+            .field("trace_segment_id", &self.trace_segment_id)
+            .field("service", &self.service)
+            .field("service_instance", &self.service_instance)
+            .field("next_span_id", &self.next_span_id)
+            .field("spans", &self.spans)
+            .finish()
+    }
 }
 
 impl TracingContext {

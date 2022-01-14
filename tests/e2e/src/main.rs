@@ -7,11 +7,13 @@ use skywalking_rust::context::propagation::encoder::encode_propagation;
 use skywalking_rust::context::trace_context::TracingContext;
 use skywalking_rust::reporter::grpc::Reporter;
 use std::convert::Infallible;
+use std::error::Error;
 use std::net::SocketAddr;
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
 static NOT_FOUND_MSG: &str = "not found";
+static SUCCESS_MSG: &str = "Success";
 
 async fn handle_ping(
     _req: Request<Body>,
@@ -45,6 +47,10 @@ async fn producer_response(
 ) -> Result<Response<Body>, Infallible> {
     match (_req.method(), _req.uri().path()) {
         (&Method::GET, "/ping") => handle_ping(_req, client, tx).await,
+        (&Method::GET, "/healthCheck") => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(SUCCESS_MSG))
+            .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from(NOT_FOUND_MSG))
@@ -66,7 +72,7 @@ async fn run_producer_service(host: [u8; 4], tx: mpsc::Sender<TracingContext>) {
     });
     let addr = SocketAddr::from((host, 8081));
     let server = Server::bind(&addr).serve(make_svc);
-
+    println!("starting producer on {:?}...", &addr);
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
@@ -95,6 +101,10 @@ async fn consumer_response(
 ) -> Result<Response<Body>, Infallible> {
     match (_req.method(), _req.uri().path()) {
         (&Method::GET, "/pong") => handle_pong(_req, tx).await,
+        (&Method::GET, "/healthCheck") => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(SUCCESS_MSG))
+            .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from(NOT_FOUND_MSG))
@@ -110,6 +120,7 @@ async fn run_consumer_service(host: [u8; 4], tx: mpsc::Sender<TracingContext>) {
     let addr = SocketAddr::from((host, 8082));
     let server = Server::bind(&addr).serve(make_svc);
 
+    println!("starting consumer on {:?}...", &addr);
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
@@ -123,13 +134,17 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    let tx = Reporter::start("http://collector:19876").await;
+    let reporter = Reporter::start("http://collector:19876").await;
+    let tx = reporter.sender();
 
     if opt.mode == "consumer" {
         run_consumer_service([0, 0, 0, 0], tx).await;
     } else if opt.mode == "producer" {
         run_producer_service([0, 0, 0, 0], tx).await;
     }
+
+    reporter.shutdown().await?;
+    Ok(())
 }

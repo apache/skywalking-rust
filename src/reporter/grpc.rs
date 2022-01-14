@@ -17,6 +17,7 @@
 use crate::context::trace_context::TracingContext;
 use crate::skywalking_proto::v3::trace_segment_report_service_client::TraceSegmentReportServiceClient;
 use crate::skywalking_proto::v3::SegmentObject;
+use std::error::Error;
 use tokio::sync::mpsc;
 use tonic::transport::Channel;
 
@@ -32,11 +33,12 @@ async fn flush(client: &mut ReporterClient, context: SegmentObject) -> Result<()
     }
 }
 
-pub struct Reporter {}
+pub struct Reporter {
+    tx: mpsc::Sender<TracingContext>,
+    shutdown_tx: mpsc::Sender<()>,
+}
 
 static CHANNEL_BUF_SIZE: usize = 1024;
-
-pub type ContextReporter = mpsc::Sender<TracingContext>;
 
 impl Reporter {
     /// Open gRPC client stream to send collected trace context.
@@ -51,23 +53,52 @@ impl Reporter {
     /// use skywalking_rust::reporter::grpc::Reporter;
     ///
     /// #[tokio::main]
-    /// async fn main (){
-    ///     let tx = Reporter::start("localhost:12800").await;
+    /// async fn main () -> Result<(), Box<dyn Error>> {
+    ///     let reporter = Reporter::start("localhost:12800").await;
     ///     let mut context = TracingContext::default("service", "instance");
-    ///     tx.send(context).await;
+    ///     reporter.sender().send(context).await?;
+    ///     reporter.shutdown().await?;
+    ///     Ok(())
     /// }
     /// ```
-    pub async fn start(address: &str) -> ContextReporter {
+    pub async fn start(address: impl Into<String>) -> Self {
         let (tx, mut rx): (mpsc::Sender<TracingContext>, mpsc::Receiver<TracingContext>) =
             mpsc::channel(CHANNEL_BUF_SIZE);
-        let mut reporter = ReporterClient::connect(address.to_string()).await.unwrap();
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
+
+        let mut reporter = ReporterClient::connect(address.into()).await.unwrap();
         tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    message = rx.recv() => {
+                        if let Some(message) = message {
+                            flush(&mut reporter, message.convert_segment_object()).await.unwrap();
+                        } else {
+                            break;
+                        }
+                    },
+                    _ = shutdown_rx.recv() => {
+                        break;
+                    }
+                }
+            }
+            rx.close();
             while let Some(message) = rx.recv().await {
                 flush(&mut reporter, message.convert_segment_object())
                     .await
                     .unwrap();
             }
         });
-        tx
+        Self { tx, shutdown_tx }
+    }
+
+    pub async fn shutdown(self) -> Result<(), Box<dyn Error>> {
+        self.shutdown_tx.send(()).await?;
+        self.shutdown_tx.closed().await;
+        Ok(())
+    }
+
+    pub fn sender(&self) -> mpsc::Sender<TracingContext> {
+        self.tx.clone()
     }
 }
