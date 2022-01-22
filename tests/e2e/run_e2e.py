@@ -43,6 +43,22 @@ if __name__ == "__main__":
   
   args = parser.parse_args()
 
+  health_check_times = 0
+  while True:
+    if health_check_times > 30:
+      raise RuntimeError("Producer health check times exceeded")
+
+    try:
+      requests.get('http://0.0.0.0:8081/healthCheck', timeout=5)
+    except Exception as e:
+      print(e)
+      health_check_times += 1
+      time.sleep(2)
+      continue
+
+    # health check passed
+    break
+
   retry_times = 0
   while True:
     if retry_times > args.max_retry_times:
