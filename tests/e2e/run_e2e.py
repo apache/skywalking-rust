@@ -1,21 +1,19 @@
 import os
 import sys
-import time
 from difflib import Differ
-from os.path import dirname
+from retry.api import retry_call
 
 import argparse
 import yaml
 import requests
-import time
 
 try:
   from yaml import CSafeLoader as Loader
 except ImportError:
   from yaml import SafeLoader as Loader
 
-def validate(expected_file_name):
-  with open(expected_file_name) as expected_data_file:
+def validate(excepted_file):
+  with open(excepted_file) as expected_data_file:
     expected_data = os.linesep.join(expected_data_file.readlines())
 
     response = requests.post(url='http://0.0.0.0:12800/dataValidate', data=expected_data)
@@ -35,6 +33,13 @@ def validate(expected_file_name):
 
     return response
 
+def health_check():
+  requests.get('http://0.0.0.0:8081/healthCheck', timeout=5)
+
+def call_target_path(target_path):
+  requests.get('http://0.0.0.0:8081{0}'.format(target_path), timeout=5)
+
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--expected_file', help='File name which includes expected reported value')
@@ -43,35 +48,10 @@ if __name__ == "__main__":
   
   args = parser.parse_args()
 
-  health_check_times = 0
-  while True:
-    if health_check_times > 30:
-      raise RuntimeError("Producer health check times exceeded")
+  import logging
+  logging.basicConfig()
+  retry_call(health_check, tries=30, delay=2)
+  retry_call(call_target_path, fargs=[args.target_path], tries=args.max_retry_times, delay=2)
 
-    try:
-      requests.get('http://0.0.0.0:8081/healthCheck', timeout=5)
-    except Exception as e:
-      print(e)
-      health_check_times += 1
-      time.sleep(2)
-      continue
-
-    # health check passed
-    break
-
-  retry_times = 0
-  while True:
-    if retry_times > args.max_retry_times:
-      raise RuntimeError("Max retry times exceeded")
-
-    try:
-      requests.get('http://0.0.0.0:8081{0}'.format(args.target_path), timeout=5)
-    except Exception as e:
-      print(e)
-      retry_times += 1
-      time.sleep(2)
-      continue
-
-    res = validate(args.expected_file)
-    assert res.status_code == 200
-    break
+  res = validate(args.expected_file)
+  assert res.status_code == 200
