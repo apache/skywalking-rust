@@ -66,9 +66,7 @@ fn create_span() {
 
     {
         let mut span1 = context.create_entry_span("op1").unwrap();
-        let mut logs = Vec::<(&str, &str)>::new();
-        logs.push(("hoge", "fuga"));
-        logs.push(("hoge2", "fuga2"));
+        let logs = vec![("hoge", "fuga"), ("hoge2", "fuga2")];
         let expected_log_message = logs
             .to_owned()
             .into_iter()
@@ -80,15 +78,13 @@ fn create_span() {
                 }
             })
             .collect();
-        let mut expected_log = Vec::<Log>::new();
-        expected_log.push(Log {
+        let expected_log = vec![Log {
             time: 100,
             data: expected_log_message,
-        });
+        }];
         span1.add_log(logs);
 
-        let mut tags = Vec::<(&str, &str)>::new();
-        tags.push(("hoge", "fuga"));
+        let tags = vec![("hoge", "fuga")];
         let expected_tags = tags
             .to_owned()
             .into_iter()
@@ -100,7 +96,7 @@ fn create_span() {
                 }
             })
             .collect();
-        span1.add_tag(tags[0].clone());
+        span1.add_tag(tags[0]);
 
         let span1_expected = SpanObject {
             span_id: 1,
@@ -124,7 +120,7 @@ fn create_span() {
 
     {
         let span2 = context.create_entry_span("op2");
-        assert_eq!(span2.is_err(), true);
+        assert!(span2.is_err());
     }
 
     {
@@ -150,11 +146,11 @@ fn create_span() {
     }
 
     let segment = context.convert_segment_object();
-    assert_eq!(segment.trace_id.len() != 0, true);
-    assert_eq!(segment.trace_segment_id.len() != 0, true);
+    assert_ne!(segment.trace_id.len(), 0);
+    assert_ne!(segment.trace_segment_id.len(), 0);
     assert_eq!(segment.service, "service");
     assert_eq!(segment.service_instance, "instance");
-    assert_eq!(segment.is_size_limited, false);
+    assert!(!segment.is_size_limited);
 }
 
 #[test]
@@ -170,11 +166,11 @@ fn create_span_from_context() {
     );
 
     let segment = context.convert_segment_object();
-    assert_eq!(segment.trace_id.len() != 0, true);
-    assert_eq!(segment.trace_segment_id.len() != 0, true);
+    assert_ne!(segment.trace_id.len(), 0);
+    assert_ne!(segment.trace_segment_id.len(), 0);
     assert_eq!(segment.service, "service2");
     assert_eq!(segment.service_instance, "instance2");
-    assert_eq!(segment.is_size_limited, false);
+    assert!(!segment.is_size_limited);
 }
 
 #[test]
