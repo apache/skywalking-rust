@@ -48,7 +48,10 @@ impl Reporter {
     /// # Example
     ///
     /// ```no_run
+    /// use std::error::Error;
+    ///
     /// use tokio;
+    ///
     /// use skywalking_rust::context::trace_context::TracingContext;
     /// use skywalking_rust::reporter::grpc::Reporter;
     ///
