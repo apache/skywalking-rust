@@ -8,17 +8,18 @@ on:
     tags:
       - 'v*'
 
-
 jobs:
   CI:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: install Rust
-        run: |
-          git submodule update --init --recursive
-          rustup toolchain install stable --component clippy --component rustfmt
-      - name: Format
-        run: cargo fmt -- --check
-      - name: clippy
-        run: cargo clippy
+        with:
+          submodules: 'recursive'
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --component clippy --component rustfmt
+      - name: Run format
+        run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --workspace --tests -- -D warnings
+      - name: Run tests
+        run: cargo test --workspace

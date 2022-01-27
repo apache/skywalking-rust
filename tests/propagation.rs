@@ -35,7 +35,7 @@ fn basic() {
     let data = "1-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=-ZXhhbXBsZS5jb206ODA4MA==";
     let res = decode_propagation(data).unwrap();
 
-    assert_eq!(res.do_sample, true);
+    assert!(res.do_sample);
     assert_eq!(res.parent_trace_id, "1");
     assert_eq!(res.parent_trace_segment_id, "5");
     assert_eq!(res.parent_span_id, 3);
@@ -50,7 +50,7 @@ fn less_field() {
     let data = "1-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=";
     let res = decode_propagation(data);
 
-    assert_eq!(res.is_err(), true);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn more_field() {
     let data = "1-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=-ZXhhbXBsZS5jb206ODA4MA==-hogehoge";
     let res = decode_propagation(data);
 
-    assert_eq!(res.is_err(), true);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn invalid_sample() {
     let data = "3-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=-ZXhhbXBsZS5jb206ODA4MA==";
     let res = decode_propagation(data);
 
-    assert_eq!(res.is_err(), true);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn basic_encode() {
     let tc = TracingContext::default_internal(Arc::new(time_fetcher), "mesh", "instance");
     let res = encode_propagation(&tc, "/api/v1/health", "example.com:8080");
     let res2 = decode_propagation(&res).unwrap();
-    assert_eq!(true, res2.do_sample);
+    assert!(res2.do_sample);
     assert_eq!("/api/v1/health", res2.destination_endpoint);
     assert_eq!("example.com:8080", res2.destination_address)
 }

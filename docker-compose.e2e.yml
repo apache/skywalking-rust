@@ -13,7 +13,7 @@ services:
   consumer:
     build:
       context: .
-      dockerfile: ./tests/e2e/docker/Dockerfile
+      dockerfile: ./e2e/docker/Dockerfile
     expose:
       - 8082
     command: --mode consumer
@@ -28,7 +28,7 @@ services:
   producer:
     build:
       context: .
-      dockerfile: ./tests/e2e/docker/Dockerfile
+      dockerfile: ./e2e/docker/Dockerfile
     ports:
       - "8081:8081"
     command: --mode producer
