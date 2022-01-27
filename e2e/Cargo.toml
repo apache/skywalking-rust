@@ -5,7 +5,7 @@ authors = ["Shikugawa <Shikugawa@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-skywalking_rust = { path = "../.." }
+skywalking_rust = { path = ".." }
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 structopt = "0.3"
