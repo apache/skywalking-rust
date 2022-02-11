@@ -15,32 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-name: CI
 
-on:
-  pull_request:
-  push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: Apache Software Foundation
 
-jobs:
-  CI:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'recursive'
-      - name: Check License Header
-        uses: apache/skywalking-eyes@ce2b365019e4fee22a2115b629dd6cfb675a9208
-        with:
-          config: .github/licenserc.yaml
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --component clippy --component rustfmt
-      - name: Run format
-        run: cargo fmt --all -- --check
-      - name: Run clippy
-        run: cargo clippy --workspace --tests -- -D warnings
-      - name: Run tests
-        run: cargo test --workspace
+  paths-ignore:
+    - 'LICENSE'
+    - 'NOTICE'
+    - '**/*.md'
+    - '**/*.lock'
+    - '**/.gitignore'
+    - '**/.gitmodules'
+
+  comment: on-failure
