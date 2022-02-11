@@ -68,5 +68,15 @@ async fn main() {
 }
 ```
 
+# How to compile?
+If you have `skywalking-rust-(VERSION).crate`, you can unpack it with the way as follows:
+
+```
+tar -xvzf skywalking-rust-(VERSION).crate
+```
+
+Using `cargo build` generates a library. If you'd like to verify the behavior, we recommend to use `cargo run --example simple_trace_report`
+which outputs executable, then run it.
+
 # License
 Apache 2.0
