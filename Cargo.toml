@@ -19,8 +19,12 @@
 [package]
 name = "skywalking_rust"
 version = "0.1.0"
-authors = ["Rei Shimizu (Shikugawa@gmail.com)"]
+authors = ["Apache SkyWalking Developers (dev@skywalking.apache.org)"]
 edition = "2021"
+description = "Apache SkyWalking Rust Agent"
+license = "Apache-2.0"
+homepage = "https://skywalking.apache.org/"
+repository = "https://github.com/apache/skywalking-rust"
 
 [dependencies]
 tonic = "0.5.2"
