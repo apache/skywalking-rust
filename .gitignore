@@ -1,3 +1,4 @@
 /target
 /tests/target
+/e2e/target
 .idea/
