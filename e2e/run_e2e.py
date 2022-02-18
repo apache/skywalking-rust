@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
-import os
+
 import sys
 from difflib import Differ
+from pathlib import Path
 from retry.api import retry_call
 
 import argparse
@@ -29,26 +29,10 @@ try:
 except ImportError:
   from yaml import SafeLoader as Loader
 
-def validate(excepted_file):
-  with open(excepted_file) as expected_data_file:
-    expected_data = os.linesep.join(expected_data_file.readlines())
-
-    response = requests.post(url='http://0.0.0.0:12800/dataValidate', data=expected_data)
-
-    if response.status_code != 200:
-      res = requests.get('http://0.0.0.0:12800/receiveData')
-      actual_data = yaml.dump(yaml.load(res.content, Loader=Loader))
-
-      differ = Differ()
-      diff_list = list(differ.compare(
-        actual_data.splitlines(keepends=True),
-        yaml.dump(yaml.load(expected_data, Loader=Loader)).splitlines(keepends=True)
-      ))
-
-      print('diff list: ')
-      sys.stdout.writelines(diff_list)
-
-    return response
+def validate(expected_data):
+  response = requests.post(url='http://0.0.0.0:12800/dataValidate', data=expected_data)
+  if response.status_code != 200:
+    raise Exception('data validate failed')
 
 def health_check():
   requests.get('http://0.0.0.0:8081/healthCheck', timeout=5)
@@ -70,5 +54,20 @@ if __name__ == "__main__":
   retry_call(health_check, tries=30, delay=2)
   retry_call(call_target_path, fargs=[args.target_path], tries=args.max_retry_times, delay=2)
 
-  res = validate(args.expected_file)
-  assert res.status_code == 200
+  expected_data = Path(args.expected_file).read_text()
+
+  try:
+    retry_call(validate, fargs=[expected_data], tries=args.max_retry_times, delay=2)
+  except Exception as e:
+    res = requests.get('http://0.0.0.0:12800/receiveData')
+    actual_data = yaml.dump(yaml.load(res.content, Loader=Loader))
+
+    differ = Differ()
+    diff_list = list(differ.compare(
+      actual_data.splitlines(keepends=True),
+      yaml.dump(yaml.load(expected_data, Loader=Loader)).splitlines(keepends=True)
+    ))
+
+    print('diff list: ')
+    sys.stdout.writelines(diff_list)
+    raise e
