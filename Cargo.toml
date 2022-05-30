@@ -27,20 +27,20 @@ homepage = "https://skywalking.apache.org/"
 repository = "https://github.com/apache/skywalking-rust"
 
 [dependencies]
-tonic = "0.5.2"
+tonic = "0.7.2"
 bytes = "1.1.0"
-prost = "0.8.0"
-prost-derive = "0.8.0"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+prost = "0.10.4"
+prost-derive = "0.10.1"
+uuid = { version = "1.1.0", features = ["serde", "v4"] }
 base64 = "0.13.0"
-tokio = { version = "1", features = ["full"] }
-async-stream = "0.3.2"
+tokio = { version = "1.18.2", features = ["full"] }
+async-stream = "0.3.3"
 
 [build-dependencies]
-tonic-build = "0.5.2"
+tonic-build = "0.7.2"
 
 [dev-dependencies]
-tokio-stream = {version = "0.1", features = ["net"]}
+tokio-stream = { version = "0.1.8", features = ["net"] }
 
 [[example]]
 name = "simple_trace_report"
