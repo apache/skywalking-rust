@@ -100,7 +100,7 @@ async fn handle_pong(
     tx: mpsc::Sender<TracingContext>,
 ) -> Result<Response<Body>, Infallible> {
     let ctx = decode_propagation(
-        &_req.headers()[SKYWALKING_HTTP_CONTEXT_HEADER_KEY]
+        _req.headers()[SKYWALKING_HTTP_CONTEXT_HEADER_KEY]
             .to_str()
             .unwrap(),
     )

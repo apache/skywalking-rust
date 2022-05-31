@@ -18,5 +18,6 @@
 FROM rust:1.57
 WORKDIR /build
 COPY . /build/
+RUN apt-get update && apt-get install -y cmake
 RUN cd e2e && cargo build --release --locked
 ENTRYPOINT ["/build/e2e/target/release/e2e"]
