@@ -232,7 +232,7 @@ impl TracingContext {
 
     /// A wrapper of create entry span, which close generated span automatically.
     /// Note that, we may use async operation in closure. But that is not unstable feature in 2021/12.
-    /// https://github.com/rust-lang/rust/issues/62290
+    /// <https://github.com/rust-lang/rust/issues/62290>
     /// So we should create and close spans manually in general.
     pub fn entry<F: FnMut(&Span)>(
         &mut self,
@@ -305,7 +305,7 @@ impl TracingContext {
 
     /// A wrapper of create exit span, which close generated span automatically.
     /// Note that, we may use async operation in closure. But that is not unstable feature in 2021/12.
-    /// https://github.com/rust-lang/rust/issues/62290
+    /// <https://github.com/rust-lang/rust/issues/62290>
     /// So we should create and close spans manually in general.
     pub fn exit<F: FnMut(&Span)>(
         &mut self,
