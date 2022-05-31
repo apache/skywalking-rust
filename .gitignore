@@ -2,3 +2,4 @@
 /tests/target
 /e2e/target
 .idea/
+/Cargo.lock
