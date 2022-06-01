@@ -70,7 +70,7 @@ impl std::fmt::Debug for Span {
     }
 }
 
-static SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
+const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
     pub fn new(
@@ -139,6 +139,11 @@ impl Span {
             key: key.to_string(),
             value: value.to_string(),
         });
+    }
+
+    /// Set component id to then span.
+    pub fn set_component_id(&mut self, component_id: i32) {
+        self.span_internal.component_id = component_id;
     }
 
     fn add_segment_reference(&mut self, segment_reference: SegmentReference) {
