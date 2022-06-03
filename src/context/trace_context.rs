@@ -114,6 +114,10 @@ impl Span {
         &self.span_internal
     }
 
+    pub fn span_object_mut(&mut self) -> &mut SpanObject {
+        &mut self.span_internal
+    }
+
     /// Add logs to the span.
     pub fn add_log(&mut self, message: Vec<(&str, &str)>) {
         let log = Log {
@@ -139,11 +143,6 @@ impl Span {
             key: key.to_string(),
             value: value.to_string(),
         });
-    }
-
-    /// Set component id to then span.
-    pub fn set_component_id(&mut self, component_id: i32) {
-        self.span_internal.component_id = component_id;
     }
 
     fn add_segment_reference(&mut self, segment_reference: SegmentReference) {
