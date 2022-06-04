@@ -74,6 +74,7 @@ const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
     pub fn new(
+        span_id: i32,
         parent_span_id: i32,
         operation_name: String,
         remote_peer: String,
@@ -83,7 +84,7 @@ impl Span {
         time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
     ) -> Self {
         let span_internal = SpanObject {
-            span_id: parent_span_id + 1,
+            span_id,
             parent_span_id,
             start_time: time_fetcher.get(),
             end_time: 0, // not set
@@ -263,6 +264,7 @@ impl TracingContext {
 
         let mut span = Box::new(Span::new(
             self.next_span_id,
+            -1,
             operation_name.to_string(),
             String::default(),
             SpanType::Entry,
@@ -341,6 +343,7 @@ impl TracingContext {
 
         let span = Box::new(Span::new(
             self.next_span_id,
+            0,
             operation_name.to_string(),
             remote_peer.to_string(),
             SpanType::Exit,
