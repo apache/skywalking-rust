@@ -25,6 +25,6 @@ impl TimeFetcher for UnixTimeStampFetcher {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64
+            .as_millis() as i64
     }
 }
