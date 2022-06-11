@@ -105,6 +105,8 @@ fn create_span() {
 
         {
             let span3 = context.create_exit_span("op3", "example.com/test").unwrap();
+            context.finalize_span(span3);
+
             let span3_expected = SpanObject {
                 span_id: 1,
                 parent_span_id: 0,
@@ -121,9 +123,39 @@ fn create_span() {
                 logs: Vec::<Log>::new(),
                 skip_analysis: false,
             };
-            context.finalize_span(span3);
             assert_eq!(*context.spans.last().unwrap().span_object(), span3_expected);
         }
+
+        {
+            let span4 = context.create_exit_span("op3", "example.com/test").unwrap();
+
+            {
+                let span5 = context.create_exit_span("op4", "example.com/test").unwrap();
+                context.finalize_span(span5);
+
+                let span5_expected = SpanObject {
+                    span_id: 3,
+                    parent_span_id: 2,
+                    start_time: 100,
+                    end_time: 100,
+                    refs: Vec::<SegmentReference>::new(),
+                    operation_name: "op4".to_string(),
+                    peer: "example.com/test".to_string(),
+                    span_type: SpanType::Exit as i32,
+                    span_layer: SpanLayer::Http as i32,
+                    component_id: 11000,
+                    is_error: false,
+                    tags: Vec::<KeyStringValuePair>::new(),
+                    logs: Vec::<Log>::new(),
+                    skip_analysis: false,
+                };
+                assert_eq!(*context.spans.last().unwrap().span_object(), span5_expected);
+            }
+
+            context.finalize_span(span4);
+        }
+
+        context.finalize_span(span1);
 
         let span1_expected = SpanObject {
             span_id: 0,
@@ -141,7 +173,6 @@ fn create_span() {
             logs: expected_log,
             skip_analysis: false,
         };
-        context.finalize_span(span1);
         assert_eq!(*context.spans.last().unwrap().span_object(), span1_expected);
     }
 
