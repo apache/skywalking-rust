@@ -16,6 +16,7 @@
 
 pub static SKYWALKING_HTTP_CONTEXT_HEADER_KEY: &str = "sw8";
 
+#[derive(Debug)]
 pub struct PropagationContext {
     /// It defines whether next span should be trace or not.
     /// In SkyWalking, If `do_sample == true`, the span should be reported to

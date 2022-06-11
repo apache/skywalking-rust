@@ -16,22 +16,22 @@
 
 #![allow(unused_imports)]
 
-pub mod skywalking_proto {
-    pub mod v3 {
-        tonic::include_proto!("skywalking.v3");
-    }
-}
+// pub mod skywalking_proto {
+//     pub mod v3 {
+//         tonic::include_proto!("skywalking.v3");
+//     }
+// }
 
 use prost::Message;
-use skywalking_proto::v3::{
-    KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
-    SpanType,
-};
 use skywalking_rust::common::time::TimeFetcher;
 use skywalking_rust::context::propagation::context::PropagationContext;
 use skywalking_rust::context::propagation::decoder::decode_propagation;
 use skywalking_rust::context::propagation::encoder::encode_propagation;
 use skywalking_rust::context::trace_context::TracingContext;
+use skywalking_rust::skywalking_proto::v3::{
+    KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
+    SpanType,
+};
 use std::{cell::Ref, sync::Arc};
 
 /// Serialize from A should equal Serialize from B
@@ -98,9 +98,36 @@ fn create_span() {
             .collect();
         span1.add_tag(tags[0]);
 
+        {
+            let span2 = context.create_entry_span("op2");
+            assert!(span2.is_err());
+        }
+
+        {
+            let span3 = context.create_exit_span("op3", "example.com/test").unwrap();
+            let span3_expected = SpanObject {
+                span_id: 1,
+                parent_span_id: 0,
+                start_time: 100,
+                end_time: 100,
+                refs: Vec::<SegmentReference>::new(),
+                operation_name: "op3".to_string(),
+                peer: "example.com/test".to_string(),
+                span_type: SpanType::Exit as i32,
+                span_layer: SpanLayer::Http as i32,
+                component_id: 11000,
+                is_error: false,
+                tags: Vec::<KeyStringValuePair>::new(),
+                logs: Vec::<Log>::new(),
+                skip_analysis: false,
+            };
+            context.finalize_span(span3);
+            assert_eq!(*context.spans.last().unwrap().span_object(), span3_expected);
+        }
+
         let span1_expected = SpanObject {
-            span_id: 1,
-            parent_span_id: 0,
+            span_id: 0,
+            parent_span_id: -1,
             start_time: 100,
             end_time: 100,
             refs: Vec::<SegmentReference>::new(),
@@ -114,35 +141,8 @@ fn create_span() {
             logs: expected_log,
             skip_analysis: false,
         };
-        context.finalize_span_for_test(&mut span1);
-        check_serialize_equivalent(span1.span_object(), &span1_expected);
-    }
-
-    {
-        let span2 = context.create_entry_span("op2");
-        assert!(span2.is_err());
-    }
-
-    {
-        let mut span3 = context.create_exit_span("op3", "example.com/test").unwrap();
-        let span3_expected = SpanObject {
-            span_id: 2,
-            parent_span_id: 1,
-            start_time: 100,
-            end_time: 100,
-            refs: Vec::<SegmentReference>::new(),
-            operation_name: "op3".to_string(),
-            peer: "example.com/test".to_string(),
-            span_type: SpanType::Exit as i32,
-            span_layer: SpanLayer::Http as i32,
-            component_id: 11000,
-            is_error: false,
-            tags: Vec::<KeyStringValuePair>::new(),
-            logs: Vec::<Log>::new(),
-            skip_analysis: false,
-        };
-        context.finalize_span_for_test(&mut span3);
-        check_serialize_equivalent(span3.span_object(), &span3_expected);
+        context.finalize_span(span1);
+        assert_eq!(*context.spans.last().unwrap().span_object(), span1_expected);
     }
 
     let segment = context.convert_segment_object();
@@ -181,11 +181,12 @@ fn crossprocess_test() {
     assert_eq!(context1.service, "service");
     assert_eq!(context1.service_instance, "instance");
 
-    let mut span1 = context1.create_entry_span("op1").unwrap();
-    context1.finalize_span_for_test(&mut span1);
-
-    let mut span2 = context1.create_exit_span("op2", "remote_peer").unwrap();
-    context1.finalize_span_for_test(&mut span2);
+    let span1 = context1.create_entry_span("op1").unwrap();
+    {
+        let span2 = context1.create_exit_span("op2", "remote_peer").unwrap();
+        context1.finalize_span(span2);
+    }
+    context1.finalize_span(span1);
 
     let enc_prop = encode_propagation(&context1, "endpoint", "address");
     let dec_prop = decode_propagation(&enc_prop).unwrap();
@@ -198,11 +199,12 @@ fn crossprocess_test() {
         dec_prop,
     );
 
-    let mut span3 = context2.create_entry_span("op2").unwrap();
-    context2.finalize_span_for_test(&mut span3);
+    let span3 = context2.create_entry_span("op2").unwrap();
+    context2.finalize_span(span3);
 
-    assert_eq!(span3.span_object().span_id, 1);
-    assert_eq!(span3.span_object().parent_span_id, 0);
+    let span3 = context2.spans.last().unwrap();
+    assert_eq!(span3.span_object().span_id, 0);
+    assert_eq!(span3.span_object().parent_span_id, -1);
     assert_eq!(span3.span_object().refs.len(), 1);
 
     let expected_ref = SegmentReference {
