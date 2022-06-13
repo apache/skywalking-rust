@@ -267,7 +267,7 @@ impl TracingContext {
             return Err("entry span have already exist.");
         }
 
-        let parent_span_id = self.active_span_id_stack.back().copied().unwrap_or(-1);
+        let parent_span_id = self.peek_active_span_id();
 
         let mut span = Box::new(Span::new(
             self.next_span_id,
@@ -350,7 +350,7 @@ impl TracingContext {
             return Err("entry span must be existed.");
         }
 
-        let parent_span_id = self.active_span_id_stack.back().copied().unwrap_or(-1);
+        let parent_span_id = self.peek_active_span_id();
 
         let span = Box::new(Span::new(
             self.next_span_id,
@@ -392,5 +392,9 @@ impl TracingContext {
             service_instance: self.service_instance.clone(),
             is_size_limited: false,
         }
+    }
+
+    pub(crate) fn peek_active_span_id(&self) -> i32 {
+        self.active_span_id_stack.back().copied().unwrap_or(-1)
     }
 }

@@ -25,7 +25,7 @@ pub fn encode_propagation(context: &TracingContext, endpoint: &str, address: &st
     res += "1-";
     res += format!("{}-", encode(context.trace_id.to_string())).as_str();
     res += format!("{}-", encode(context.trace_segment_id.to_string())).as_str();
-    res += format!("{}-", context.next_span_id).as_str();
+    res += format!("{}-", context.peek_active_span_id()).as_str();
     res += format!("{}-", encode(context.service.as_str())).as_str();
     res += format!("{}-", encode(context.service_instance.as_str())).as_str();
     res += format!("{}-", encode(endpoint)).as_str();
