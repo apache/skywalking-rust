@@ -21,6 +21,7 @@ use crate::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };
+use std::collections::LinkedList;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
@@ -70,10 +71,12 @@ impl std::fmt::Debug for Span {
     }
 }
 
-static SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
+const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        span_id: i32,
         parent_span_id: i32,
         operation_name: String,
         remote_peer: String,
@@ -83,7 +86,7 @@ impl Span {
         time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
     ) -> Self {
         let span_internal = SpanObject {
-            span_id: parent_span_id + 1,
+            span_id,
             parent_span_id,
             start_time: time_fetcher.get(),
             end_time: 0, // not set
@@ -112,6 +115,10 @@ impl Span {
 
     pub fn span_object(&self) -> &SpanObject {
         &self.span_internal
+    }
+
+    pub fn span_object_mut(&mut self) -> &mut SpanObject {
+        &mut self.span_internal
     }
 
     /// Add logs to the span.
@@ -155,6 +162,7 @@ pub struct TracingContext {
     pub spans: Vec<Box<Span>>,
     time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
     segment_link: Option<PropagationContext>,
+    active_span_id_stack: LinkedList<i32>,
 }
 
 impl std::fmt::Debug for TracingContext {
@@ -192,6 +200,7 @@ impl TracingContext {
             time_fetcher,
             spans: Vec::new(),
             segment_link: None,
+            active_span_id_stack: LinkedList::new(),
         }
     }
 
@@ -227,6 +236,7 @@ impl TracingContext {
             time_fetcher,
             spans: Vec::new(),
             segment_link: Some(context),
+            active_span_id_stack: LinkedList::new(),
         }
     }
 
@@ -257,8 +267,11 @@ impl TracingContext {
             return Err("entry span have already exist.");
         }
 
+        let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
+
         let mut span = Box::new(Span::new(
             self.next_span_id,
+            parent_span_id,
             operation_name.to_string(),
             String::default(),
             SpanType::Entry,
@@ -300,6 +313,8 @@ impl TracingContext {
             });
         }
         self.next_span_id += 1;
+        self.active_span_id_stack
+            .push_back(span.span_internal.span_id);
         Ok(span)
     }
 
@@ -335,8 +350,11 @@ impl TracingContext {
             return Err("entry span must be existed.");
         }
 
+        let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
+
         let span = Box::new(Span::new(
             self.next_span_id,
+            parent_span_id,
             operation_name.to_string(),
             remote_peer.to_string(),
             SpanType::Exit,
@@ -345,6 +363,8 @@ impl TracingContext {
             self.time_fetcher.clone(),
         ));
         self.next_span_id += 1;
+        self.active_span_id_stack
+            .push_back(span.span_internal.span_id);
         Ok(span)
     }
 
@@ -352,10 +372,7 @@ impl TracingContext {
     pub fn finalize_span(&mut self, mut span: Box<Span>) {
         span.close();
         self.spans.push(span);
-    }
-
-    pub fn finalize_span_for_test(&self, span: &mut Box<Span>) {
-        span.close();
+        self.active_span_id_stack.pop_back();
     }
 
     /// It converts tracing context into segment object.
@@ -375,5 +392,9 @@ impl TracingContext {
             service_instance: self.service_instance.clone(),
             is_size_limited: false,
         }
+    }
+
+    pub(crate) fn peek_active_span_id(&self) -> Option<i32> {
+        self.active_span_id_stack.back().copied()
     }
 }
