@@ -16,12 +16,6 @@
 
 #![allow(unused_imports)]
 
-// pub mod skywalking_proto {
-//     pub mod v3 {
-//         tonic::include_proto!("skywalking.v3");
-//     }
-// }
-
 use prost::Message;
 use skywalking_rust::common::time::TimeFetcher;
 use skywalking_rust::context::propagation::context::PropagationContext;
@@ -215,39 +209,43 @@ fn crossprocess_test() {
     let span1 = context1.create_entry_span("op1").unwrap();
     {
         let span2 = context1.create_exit_span("op2", "remote_peer").unwrap();
+
+        {
+            let enc_prop = encode_propagation(&context1, "endpoint", "address");
+            let dec_prop = decode_propagation(&enc_prop).unwrap();
+
+            let time_fetcher2 = MockTimeFetcher {};
+            let mut context2 = TracingContext::from_propagation_context_internal(
+                Arc::new(time_fetcher2),
+                "service2",
+                "instance2",
+                dec_prop,
+            );
+
+            let span3 = context2.create_entry_span("op2").unwrap();
+            context2.finalize_span(span3);
+
+            let span3 = context2.spans.last().unwrap();
+            assert_eq!(span3.span_object().span_id, 0);
+            assert_eq!(span3.span_object().parent_span_id, -1);
+            assert_eq!(span3.span_object().refs.len(), 1);
+
+            let expected_ref = SegmentReference {
+                ref_type: RefType::CrossProcess as i32,
+                trace_id: context2.trace_id,
+                parent_trace_segment_id: context1.trace_segment_id.clone(),
+                parent_span_id: 1,
+                parent_service: context1.service.clone(),
+                parent_service_instance: context1.service_instance.clone(),
+                parent_endpoint: "endpoint".to_string(),
+                network_address_used_at_peer: "address".to_string(),
+            };
+
+            check_serialize_equivalent(&expected_ref, &span3.span_object().refs[0]);
+        }
+
         context1.finalize_span(span2);
     }
+
     context1.finalize_span(span1);
-
-    let enc_prop = encode_propagation(&context1, "endpoint", "address");
-    let dec_prop = decode_propagation(&enc_prop).unwrap();
-
-    let time_fetcher2 = MockTimeFetcher {};
-    let mut context2 = TracingContext::from_propagation_context_internal(
-        Arc::new(time_fetcher2),
-        "service2",
-        "instance2",
-        dec_prop,
-    );
-
-    let span3 = context2.create_entry_span("op2").unwrap();
-    context2.finalize_span(span3);
-
-    let span3 = context2.spans.last().unwrap();
-    assert_eq!(span3.span_object().span_id, 0);
-    assert_eq!(span3.span_object().parent_span_id, -1);
-    assert_eq!(span3.span_object().refs.len(), 1);
-
-    let expected_ref = SegmentReference {
-        ref_type: RefType::CrossProcess as i32,
-        trace_id: context2.trace_id,
-        parent_trace_segment_id: context1.trace_segment_id,
-        parent_span_id: context1.next_span_id,
-        parent_service: context1.service,
-        parent_service_instance: context1.service_instance,
-        parent_endpoint: "endpoint".to_string(),
-        network_address_used_at_peer: "address".to_string(),
-    };
-
-    check_serialize_equivalent(&expected_ref, &span3.span_object().refs[0]);
 }
