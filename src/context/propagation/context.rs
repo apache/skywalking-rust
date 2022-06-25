@@ -26,7 +26,7 @@ pub struct PropagationContext {
     /// It defines trace ID that previous span has. It expresses unique value of entire trace.
     pub parent_trace_id: String,
 
-    /// It defines segment ID that previos span has. It expresses unique value of entire trace.
+    /// It defines segment ID that previous span has. It expresses unique value of entire trace.
     pub parent_trace_segment_id: String,
 
     /// It defines parent span's span ID.
@@ -45,7 +45,7 @@ pub struct PropagationContext {
     pub destination_address: String,
 }
 
-/// PropagationContext carries the context which include trace infomation.
+/// PropagationContext carries the context which include trace information.
 /// In general, this context will be used if you create new TraceContext after received
 /// decoded context that should be packed in `sw8` header.
 impl PropagationContext {
