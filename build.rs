@@ -15,11 +15,9 @@
 //
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tonic_build::configure()
-        .build_server(false)
-        .compile(
-            &["./skywalking-data-collect-protocol/language-agent/Tracing.proto"],
-            &["./skywalking-data-collect-protocol"],
-        )?;
+    tonic_build::configure().build_server(false).compile(
+        &["./skywalking-data-collect-protocol/language-agent/Tracing.proto"],
+        &["./skywalking-data-collect-protocol"],
+    )?;
     Ok(())
 }
