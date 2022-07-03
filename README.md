@@ -33,8 +33,8 @@ context after the span finished.
 # Example
 
 ```rust
-use skywalking_rust::context::trace_context::TracingContext;
-use skywalking_rust::reporter::grpc::Reporter;
+use skywalking::context::trace_context::TracingContext;
+use skywalking::reporter::grpc::Reporter;
 use tokio;
 
 async fn handle_request(reporter: ContextReporter) {

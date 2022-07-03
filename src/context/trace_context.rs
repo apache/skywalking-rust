@@ -34,7 +34,7 @@ use super::system_time::UnixTimeStampFetcher;
 /// # Example
 ///
 /// ```
-/// use skywalking_rust::context::trace_context::TracingContext;
+/// use skywalking::context::trace_context::TracingContext;
 ///
 /// async fn handle_request() {
 ///     let mut ctx = TracingContext::default("svc", "ins");
@@ -206,7 +206,7 @@ impl TracingContext {
 
     /// Generate a new trace context using the propagated context.
     /// They should be propagated on `sw8` header in HTTP request with encoded form.
-    /// You can retrieve decoded context with `skywalking_rust::context::propagation::encoder::encode_propagation`
+    /// You can retrieve decoded context with `skywalking::context::propagation::encoder::encode_propagation`
     pub fn from_propagation_context(
         service_name: &str,
         instance_name: &str,

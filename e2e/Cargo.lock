@@ -184,7 +184,7 @@ name = "e2e"
 version = "0.1.0"
 dependencies = [
  "hyper",
- "skywalking_rust",
+ "skywalking",
  "structopt",
  "tokio",
 ]
@@ -777,7 +777,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "skywalking_rust"
+name = "skywalking"
 version = "0.1.0"
 dependencies = [
  "async-stream",
