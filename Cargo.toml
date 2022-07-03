@@ -18,7 +18,7 @@
 
 [package]
 name = "skywalking"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Apache SkyWalking Developers (dev@skywalking.apache.org)"]
 edition = "2021"
 description = "Apache SkyWalking Rust Agent"
