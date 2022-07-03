@@ -17,12 +17,12 @@
 #![allow(unused_imports)]
 
 use prost::Message;
-use skywalking_rust::common::time::TimeFetcher;
-use skywalking_rust::context::propagation::context::PropagationContext;
-use skywalking_rust::context::propagation::decoder::decode_propagation;
-use skywalking_rust::context::propagation::encoder::encode_propagation;
-use skywalking_rust::context::trace_context::TracingContext;
-use skywalking_rust::skywalking_proto::v3::{
+use skywalking::common::time::TimeFetcher;
+use skywalking::context::propagation::context::PropagationContext;
+use skywalking::context::propagation::decoder::decode_propagation;
+use skywalking::context::propagation::encoder::encode_propagation;
+use skywalking::context::trace_context::TracingContext;
+use skywalking::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };

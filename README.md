@@ -33,8 +33,8 @@ context after the span finished.
 # Example
 
 ```rust
-use skywalking_rust::context::trace_context::TracingContext;
-use skywalking_rust::reporter::grpc::Reporter;
+use skywalking::context::trace_context::TracingContext;
+use skywalking::reporter::grpc::Reporter;
 use tokio;
 
 async fn handle_request(reporter: ContextReporter) {
@@ -69,10 +69,10 @@ async fn main() {
 ```
 
 # How to compile?
-If you have `skywalking-rust-(VERSION).crate`, you can unpack it with the way as follows:
+If you have `skywalking-(VERSION).crate`, you can unpack it with the way as follows:
 
 ```
-tar -xvzf skywalking-rust-(VERSION).crate
+tar -xvzf skywalking-(VERSION).crate
 ```
 
 Using `cargo build` generates a library. If you'd like to verify the behavior, we recommend to use `cargo run --example simple_trace_report`

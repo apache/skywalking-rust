@@ -17,8 +17,8 @@
 //
 use std::error::Error;
 
-use skywalking_rust::context::trace_context::TracingContext;
-use skywalking_rust::reporter::grpc::Reporter;
+use skywalking::context::trace_context::TracingContext;
+use skywalking::reporter::grpc::Reporter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

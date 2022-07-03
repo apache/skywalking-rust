@@ -18,11 +18,11 @@
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Method, Request, Response, Server, StatusCode};
-use skywalking_rust::context::propagation::context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY;
-use skywalking_rust::context::propagation::decoder::decode_propagation;
-use skywalking_rust::context::propagation::encoder::encode_propagation;
-use skywalking_rust::context::trace_context::TracingContext;
-use skywalking_rust::reporter::grpc::Reporter;
+use skywalking::context::propagation::context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY;
+use skywalking::context::propagation::decoder::decode_propagation;
+use skywalking::context::propagation::encoder::encode_propagation;
+use skywalking::context::trace_context::TracingContext;
+use skywalking::reporter::grpc::Reporter;
 use std::convert::Infallible;
 use std::error::Error;
 use std::net::SocketAddr;
