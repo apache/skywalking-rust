@@ -5,7 +5,8 @@ Apache SkyWalking Rust Agent
 
 [![Twitter Follow](https://img.shields.io/twitter/follow/asfskywalking.svg?style=for-the-badge&label=Follow&logo=twitter)](https://twitter.com/AsfSkyWalking)
 
-![CI](https://github.com/apache/skywalking-nginx-lua/workflows/CI/badge.svg?branch=master)
+[![Crates](https://img.shields.io/badge/skywalking-crates.io-blue)](https://crates.io/crates/skywalking)
+![CI](https://github.com/apache/skywalking-rust/workflows/CI/badge.svg?branch=master)
 
 
 [**SkyWalking**](https://github.com/apache/skywalking) Rust Agent provides observability capability for Rust App and Library, 
