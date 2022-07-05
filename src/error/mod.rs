@@ -14,15 +14,21 @@
 // limitations under the License.
 //
 
-pub mod skywalking_proto {
-    pub mod v3 {
-        tonic::include_proto!("skywalking.v3");
-    }
+/// Skywalking Result.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// Skywalking Error.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("create span failed: {0}")]
+    CreateSpan(&'static str),
+
+    #[error("decode propagation failed: {0}")]
+    DecodePropagation(&'static str),
+
+    #[error("reporter shutdown failed: {0}")]
+    ReporterShutdown(String),
+
+    #[error("tonic transport failed failed: {0}")]
+    TonicTransport(#[from] tonic::transport::Error),
 }
-
-pub mod common;
-pub mod context;
-mod error;
-pub mod reporter;
-
-pub use error::{Error, Result};

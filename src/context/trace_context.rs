@@ -248,7 +248,7 @@ impl TracingContext {
         &mut self,
         operation_name: &str,
         mut process_fn: F,
-    ) -> Result<(), &str> {
+    ) -> crate::Result<()> {
         match self.create_entry_span(operation_name) {
             Ok(mut span) => {
                 process_fn(span.as_ref());
@@ -262,9 +262,9 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered by
     /// external service.
-    pub fn create_entry_span(&mut self, operation_name: &str) -> Result<Box<Span>, &'static str> {
+    pub fn create_entry_span(&mut self, operation_name: &str) -> crate::Result<Box<Span>> {
         if self.next_span_id >= 1 {
-            return Err("entry span have already exist.");
+            return Err(crate::Error::CreateSpan("entry span have already exist."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
@@ -327,7 +327,7 @@ impl TracingContext {
         operation_name: &str,
         remote_peer: &str,
         mut process_fn: F,
-    ) -> Result<(), &str> {
+    ) -> crate::Result<()> {
         match self.create_exit_span(operation_name, remote_peer) {
             Ok(mut span) => {
                 process_fn(span.as_ref());
@@ -345,9 +345,9 @@ impl TracingContext {
         &mut self,
         operation_name: &str,
         remote_peer: &str,
-    ) -> Result<Box<Span>, &'static str> {
+    ) -> crate::Result<Box<Span>> {
         if self.next_span_id == 0 {
-            return Err("entry span must be existed.");
+            return Err(crate::Error::CreateSpan("entry span must be existed."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);

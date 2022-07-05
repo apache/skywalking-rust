@@ -18,11 +18,13 @@ use crate::context::propagation::context::PropagationContext;
 use base64::decode;
 
 /// Decode context value packed in `sw8` header.
-pub fn decode_propagation(header_value: &str) -> Result<PropagationContext, &str> {
+pub fn decode_propagation(header_value: &str) -> crate::Result<PropagationContext> {
     let pieces: Vec<&str> = header_value.split('-').collect();
 
     if pieces.len() != 8 {
-        return Err("failed to parse propagation context: it must have 8 properties.");
+        return Err(crate::Error::DecodePropagation(
+            "failed to parse propagation context: it must have 8 properties.",
+        ));
     }
 
     let do_sample = try_parse_sample_status(pieces[0])?;
@@ -48,30 +50,34 @@ pub fn decode_propagation(header_value: &str) -> Result<PropagationContext, &str
     Ok(context)
 }
 
-fn try_parse_parent_span_id(id: &str) -> Result<i32, &str> {
+fn try_parse_parent_span_id(id: &str) -> crate::Result<i32> {
     if let Ok(result) = id.parse::<i32>() {
         Ok(result)
     } else {
-        Err("failed to parse span id from parent.")
+        Err(crate::Error::DecodePropagation(
+            "failed to parse span id from parent.",
+        ))
     }
 }
 
-fn try_parse_sample_status(status: &str) -> Result<bool, &str> {
+fn try_parse_sample_status(status: &str) -> crate::Result<bool> {
     if status == "0" {
         Ok(false)
     } else if status == "1" {
         Ok(true)
     } else {
-        Err("failed to parse sample status.")
+        Err(crate::Error::DecodePropagation(
+            "failed to parse sample status.",
+        ))
     }
 }
 
-fn b64_encoded_into_string(enc: &str) -> Result<String, &str> {
+fn b64_encoded_into_string(enc: &str) -> crate::Result<String> {
     if let Ok(result) = decode(enc) {
         if let Ok(decoded_str) = String::from_utf8(result) {
             return Ok(decoded_str);
         }
     }
 
-    Err("failed to decode value.")
+    Err(crate::Error::DecodePropagation("failed to decode value."))
 }
