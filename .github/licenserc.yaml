@@ -28,5 +28,14 @@ header:
     - '**/*.lock'
     - '**/.gitignore'
     - '**/.gitmodules'
+    - 'vendor'
+    - 'e2e/vendor'
+    - '.cargo'
+    - 'e2e/.cargo'
+    - '.vscode'
 
   comment: on-failure
+
+dependency:
+  files:
+    - Cargo.toml
