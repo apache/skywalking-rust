@@ -17,7 +17,6 @@
 use crate::context::trace_context::TracingContext;
 use crate::skywalking_proto::v3::trace_segment_report_service_client::TraceSegmentReportServiceClient;
 use crate::skywalking_proto::v3::SegmentObject;
-use std::error::Error;
 use tokio::sync::mpsc;
 use tonic::transport::Channel;
 
@@ -57,19 +56,19 @@ impl Reporter {
     ///
     /// #[tokio::main]
     /// async fn main () -> Result<(), Box<dyn Error>> {
-    ///     let reporter = Reporter::start("localhost:12800").await;
+    ///     let reporter = Reporter::start("localhost:12800").await?;
     ///     let mut context = TracingContext::default("service", "instance");
     ///     reporter.sender().send(context).await?;
     ///     reporter.shutdown().await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn start(address: impl Into<String>) -> Self {
+    pub async fn start(address: impl Into<String>) -> crate::Result<Self> {
         let (tx, mut rx): (mpsc::Sender<TracingContext>, mpsc::Receiver<TracingContext>) =
             mpsc::channel(CHANNEL_BUF_SIZE);
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
-        let mut reporter = ReporterClient::connect(address.into()).await.unwrap();
+        let mut reporter = ReporterClient::connect(address.into()).await?;
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -92,11 +91,14 @@ impl Reporter {
                     .unwrap();
             }
         });
-        Self { tx, shutdown_tx }
+        Ok(Self { tx, shutdown_tx })
     }
 
-    pub async fn shutdown(self) -> Result<(), Box<dyn Error>> {
-        self.shutdown_tx.send(()).await?;
+    pub async fn shutdown(self) -> crate::Result<()> {
+        self.shutdown_tx
+            .send(())
+            .await
+            .map_err(|e| crate::Error::ReporterShutdown(e.to_string()))?;
         self.shutdown_tx.closed().await;
         Ok(())
     }

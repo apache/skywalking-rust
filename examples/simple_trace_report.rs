@@ -22,7 +22,7 @@ use skywalking::reporter::grpc::Reporter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let reporter = Reporter::start("http://0.0.0.0:11800").await;
+    let reporter = Reporter::start("http://0.0.0.0:11800").await?;
     let mut context = TracingContext::default("service", "instance");
     {
         let span = context.create_entry_span("op1").unwrap();

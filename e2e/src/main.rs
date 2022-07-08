@@ -153,7 +153,7 @@ struct Opt {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    let reporter = Reporter::start("http://collector:19876").await;
+    let reporter = Reporter::start("http://collector:19876").await?;
     let tx = reporter.sender();
 
     if opt.mode == "consumer" {

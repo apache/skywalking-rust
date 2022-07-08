@@ -33,7 +33,11 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Check License Header
-        uses: apache/skywalking-eyes@ce2b365019e4fee22a2115b629dd6cfb675a9208
+        uses: apache/skywalking-eyes/header/@501a28d2fb4a9b962661987e50cf0219631b32ff
+        with:
+          config: .github/licenserc.yaml
+      - name: Check dependencies License
+        uses: apache/skywalking-eyes/dependency/@501a28d2fb4a9b962661987e50cf0219631b32ff
         with:
           config: .github/licenserc.yaml
       - name: Install Rust toolchain
