@@ -38,7 +38,7 @@ use skywalking::context::trace_context::TracingContext;
 use skywalking::reporter::grpc::Reporter;
 use tokio;
 
-async fn handle_request(reporter: ContextReporter) {
+async fn handle_request(reporter: Reporter) {
     let mut ctx = TracingContext::default("svc", "ins");
     {
         // Generate an Entry Span when a request
@@ -49,7 +49,7 @@ async fn handle_request(reporter: ContextReporter) {
 
         {
             // Generates an Exit Span when executing an RPC.
-            let span2 = ctx.create_exit_span("operation2").unwrap();
+            let span2 = ctx.create_exit_span("operation2", "remote_peer").unwrap();
             
             // Something...
 
@@ -58,7 +58,7 @@ async fn handle_request(reporter: ContextReporter) {
 
         ctx.finalize_span(span);
     }
-    reporter.send(context).await;
+    reporter.sender().send(ctx).await;
 }
 
 #[tokio::main]
@@ -72,7 +72,7 @@ async fn main() {
 # How to compile?
 If you have `skywalking-(VERSION).crate`, you can unpack it with the way as follows:
 
-```
+```shell
 tar -xvzf skywalking-(VERSION).crate
 ```
 

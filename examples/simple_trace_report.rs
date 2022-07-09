@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 //
-use std::error::Error;
-
 use skywalking::context::trace_context::TracingContext;
 use skywalking::reporter::grpc::Reporter;
+use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

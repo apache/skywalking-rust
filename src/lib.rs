@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+#![warn(rust_2018_idioms)]
+#![warn(clippy::dbg_macro, clippy::print_stdout)]
+#![doc = include_str!("../README.md")]
 
 pub mod skywalking_proto {
     pub mod v3 {
