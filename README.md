@@ -33,24 +33,28 @@ context after the span finished.
 
 # Example
 
-```rust
-use skywalking::context::trace_context::TracingContext;
-use skywalking::reporter::grpc::Reporter;
-use tokio;
+```rust, no_run
+use skywalking::context::tracer::Tracer;
+use skywalking::reporter::grpc::GrpcReporter;
+use std::error::Error;
+use std::sync::Arc;
+use tokio::signal;
+use tokio::sync::oneshot;
 
-async fn handle_request(reporter: Reporter) {
-    let mut ctx = TracingContext::default("svc", "ins");
+async fn handle_request(tracer: Arc<Tracer<GrpcReporter>>) {
+    let mut ctx = tracer.create_trace_context();
+
     {
         // Generate an Entry Span when a request
         // is received. An Entry Span is generated only once per context.
-        let span = ctx.create_entry_span("operation1").unwrap();
+        let span = ctx.create_entry_span("op1").unwrap();
 
         // Something...
 
         {
             // Generates an Exit Span when executing an RPC.
-            let span2 = ctx.create_exit_span("operation2", "remote_peer").unwrap();
-            
+            let span2 = ctx.create_exit_span("op2", "remote_peer").unwrap();
+
             // Something...
 
             ctx.finalize_span(span2);
@@ -58,14 +62,27 @@ async fn handle_request(reporter: Reporter) {
 
         ctx.finalize_span(span);
     }
-    reporter.sender().send(ctx).await;
+
+    tracer.finalize_context(ctx);
 }
 
 #[tokio::main]
-async fn main() {
-    let tx = Reporter::start("http://0.0.0.0:11800").await;
+async fn main() -> Result<(), Box<dyn Error>> {
+    let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
+    let tracer = Arc::new(Tracer::new("service", "instance", reporter));
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    // Start server...
+    tokio::spawn(handle_request(tracer.clone()));
+
+    // Block to report.
+    let handle = tokio::spawn(async move { tracer.reporting(shutdown_rx).await });
+
+    // Graceful shutdown.
+    signal::ctrl_c().await?;
+    let _ = shutdown_tx.send(());
+    handle.await??;
+
+    Ok(())
 }
 ```
 

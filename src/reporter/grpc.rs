@@ -14,96 +14,43 @@
 // limitations under the License.
 //
 
-use crate::context::trace_context::TracingContext;
-use crate::skywalking_proto::v3::trace_segment_report_service_client::TraceSegmentReportServiceClient;
-use crate::skywalking_proto::v3::SegmentObject;
-use tokio::sync::mpsc;
-use tonic::transport::Channel;
+use super::Reporter;
+use crate::skywalking_proto::v3::{
+    trace_segment_report_service_client::TraceSegmentReportServiceClient, SegmentObject,
+};
+use futures_core::Stream;
+use tonic::{
+    async_trait,
+    transport::{self, Channel, Endpoint},
+};
 
-pub type ReporterClient = TraceSegmentReportServiceClient<Channel>;
+type ReporterClient = TraceSegmentReportServiceClient<Channel>;
 
-async fn flush(client: &mut ReporterClient, context: SegmentObject) -> Result<(), tonic::Status> {
-    let stream = async_stream::stream! {
-        yield context;
-    };
-    match client.collect(stream).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
+pub struct GrpcReporter {
+    client: ReporterClient,
+}
+
+impl GrpcReporter {
+    pub fn new(channel: Channel) -> Self {
+        let client = ReporterClient::new(channel);
+        Self { client }
+    }
+
+    pub async fn connect(
+        address: impl TryInto<Endpoint, Error = transport::Error>,
+    ) -> crate::Result<Self> {
+        let client = ReporterClient::connect(address.try_into()?).await?;
+        Ok(Self { client })
     }
 }
 
-pub struct Reporter {
-    tx: mpsc::Sender<TracingContext>,
-    shutdown_tx: mpsc::Sender<()>,
-}
-
-static CHANNEL_BUF_SIZE: usize = 1024;
-
-impl Reporter {
-    /// Open gRPC client stream to send collected trace context.
-    /// This function generates a new async task which watch to arrive new trace context.
-    /// We can send collected context to push into sender.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use std::error::Error;
-    ///
-    /// use tokio;
-    ///
-    /// use skywalking::context::trace_context::TracingContext;
-    /// use skywalking::reporter::grpc::Reporter;
-    ///
-    /// #[tokio::main]
-    /// async fn main () -> Result<(), Box<dyn Error>> {
-    ///     let reporter = Reporter::start("localhost:12800").await?;
-    ///     let mut context = TracingContext::default("service", "instance");
-    ///     reporter.sender().send(context).await?;
-    ///     reporter.shutdown().await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn start(address: impl Into<String>) -> crate::Result<Self> {
-        let (tx, mut rx): (mpsc::Sender<TracingContext>, mpsc::Receiver<TracingContext>) =
-            mpsc::channel(CHANNEL_BUF_SIZE);
-        let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
-
-        let mut reporter = ReporterClient::connect(address.into()).await?;
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    message = rx.recv() => {
-                        if let Some(message) = message {
-                            flush(&mut reporter, message.convert_segment_object()).await.unwrap();
-                        } else {
-                            break;
-                        }
-                    },
-                    _ = shutdown_rx.recv() => {
-                        break;
-                    }
-                }
-            }
-            rx.close();
-            while let Some(message) = rx.recv().await {
-                flush(&mut reporter, message.convert_segment_object())
-                    .await
-                    .unwrap();
-            }
-        });
-        Ok(Self { tx, shutdown_tx })
-    }
-
-    pub async fn shutdown(self) -> crate::Result<()> {
-        self.shutdown_tx
-            .send(())
-            .await
-            .map_err(|e| crate::Error::ReporterShutdown(e.to_string()))?;
-        self.shutdown_tx.closed().await;
+#[async_trait]
+impl Reporter for GrpcReporter {
+    async fn collect(
+        &mut self,
+        stream: impl Stream<Item = SegmentObject> + Send + 'static,
+    ) -> crate::Result<()> {
+        self.client.collect(stream).await?;
         Ok(())
-    }
-
-    pub fn sender(&self) -> mpsc::Sender<TracingContext> {
-        self.tx.clone()
     }
 }

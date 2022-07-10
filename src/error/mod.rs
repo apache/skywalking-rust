@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use tokio::{sync::oneshot, task::JoinError};
+
 /// Skywalking Result.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -29,6 +31,15 @@ pub enum Error {
     #[error("reporter shutdown failed: {0}")]
     ReporterShutdown(String),
 
-    #[error("tonic transport failed failed: {0}")]
+    #[error("tonic transport failed: {0}")]
     TonicTransport(#[from] tonic::transport::Error),
+
+    #[error("tonic status: {0}")]
+    TonicStatus(#[from] tonic::Status),
+
+    #[error("tokio task join failed: {0}")]
+    TokioJoin(#[from] JoinError),
+
+    #[error("tokio oneshot receive failed: {0}")]
+    TokioOneshotRecv(#[from] oneshot::error::RecvError),
 }

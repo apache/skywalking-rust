@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-pub mod context_manager;
 pub mod propagation;
 pub mod system_time;
 pub mod trace_context;
+pub mod tracer;

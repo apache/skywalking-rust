@@ -15,3 +15,15 @@
 //
 
 pub mod grpc;
+
+use crate::skywalking_proto::v3::SegmentObject;
+use futures_core::Stream;
+use tonic::async_trait;
+
+#[async_trait]
+pub trait Reporter {
+    async fn collect(
+        &mut self,
+        stream: impl Stream<Item = SegmentObject> + Send + 'static,
+    ) -> crate::Result<()>;
+}
