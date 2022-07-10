@@ -20,7 +20,6 @@ use skywalking::reporter::grpc::GrpcReporter;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::signal;
-use tokio::sync::oneshot;
 
 async fn handle_request(tracer: Arc<Tracer<GrpcReporter>>) {
     let mut ctx = tracer.create_trace_context();
@@ -51,17 +50,15 @@ async fn handle_request(tracer: Arc<Tracer<GrpcReporter>>) {
 async fn main() -> Result<(), Box<dyn Error>> {
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
     let tracer = Arc::new(Tracer::new("service", "instance", reporter));
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
     tokio::spawn(handle_request(tracer.clone()));
 
-    // Block to report.
-    let handle = tokio::spawn(async move { tracer.reporting(shutdown_rx).await });
+    // Start to report.
+    let handle = tracer.reporting(async move {
+        let _ = signal::ctrl_c().await;
+    });
 
-    // Graceful shutdown.
-    signal::ctrl_c().await?;
-    let _ = shutdown_tx.send(());
-    handle.await??;
+    handle.await?;
 
     Ok(())
 }

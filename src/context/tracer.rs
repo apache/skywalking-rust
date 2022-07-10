@@ -14,14 +14,20 @@
 // limitations under the License.
 //
 
+use super::propagation::context::PropagationContext;
 use crate::{
     context::trace_context::TracingContext, reporter::Reporter, skywalking_proto::v3::SegmentObject,
 };
 use futures_util::stream;
+use std::future::Future;
 use std::{collections::LinkedList, sync::Arc};
-use tokio::sync::{mpsc, oneshot, Mutex};
-
-use super::propagation::context::PropagationContext;
+use tokio::{
+    sync::{
+        mpsc::{self, UnboundedReceiver},
+        Mutex,
+    },
+    task::JoinHandle,
+};
 
 /// Skywalking tracer.
 pub struct Tracer<R: Reporter + Send + Sync + 'static> {
@@ -63,17 +69,32 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
     pub fn finalize_context(&self, context: TracingContext) {
         let segment_object = context.convert_segment_object();
         if self.segment_sender.send(segment_object).is_err() {
-            tracing::debug!("segment object channel has closed");
+            tracing::warn!("segment object channel has closed");
         }
     }
 
-    /// Block to report, quit when shutdown_signal received.
+    /// Start to reporting, quit when shutdown_signal received.
     ///
     /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-    pub async fn reporting(&self, shutdown_signal: oneshot::Receiver<()>) -> crate::Result<()> {
-        let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
-        let segment_receiver = self.segment_receiver.clone();
+    pub fn reporting(
+        &self,
+        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
+    ) -> JoinHandle<()> {
         let reporter = self.reporter.clone();
+        let segment_receiver = self.segment_receiver.clone();
+        tokio::spawn(Self::do_reporting(
+            reporter,
+            segment_receiver,
+            shutdown_signal,
+        ))
+    }
+
+    async fn do_reporting(
+        reporter: Arc<Mutex<R>>,
+        segment_receiver: Arc<Mutex<UnboundedReceiver<SegmentObject>>>,
+        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
+    ) {
+        let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
 
         let handle = tokio::spawn(async move {
             loop {
@@ -81,12 +102,16 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
                 let mut segments = LinkedList::new();
 
                 tokio::select! {
-                    segment_object = segment_receiver.recv() => {
-                        if let Some(segment_object) = segment_object {
+                    segment = segment_receiver.recv() => {
+                        drop(segment_receiver);
+
+                        if let Some(segment) = segment {
                             // TODO Implement batch collect in future.
-                            segments.push_back(segment_object);
+                            segments.push_back(segment);
                             let mut reporter = reporter.lock().await;
                             Self::report_segment_object(&mut reporter, segments).await;
+                        } else {
+                            break;
                         }
                     }
                     _ =  shutdown_rx.recv() => break,
@@ -94,11 +119,14 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
             }
         });
 
-        shutdown_signal.await?;
-        shutdown_tx.send(()).unwrap();
-        handle.await?;
+        shutdown_signal.await;
 
-        Ok(())
+        if shutdown_tx.send(()).is_err() {
+            tracing::error!("Shutdown signal send failed");
+        }
+        if let Err(e) = handle.await {
+            tracing::error!("Tokio handle join failed: {:?}", e);
+        }
     }
 
     async fn report_segment_object(reporter: &mut R, segments: LinkedList<SegmentObject>) {
