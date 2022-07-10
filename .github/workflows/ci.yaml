@@ -25,6 +25,11 @@ on:
     tags:
       - 'v*'
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  RUSTFLAGS: "-D warnings"
+
 jobs:
   CI:
     runs-on: ubuntu-latest
@@ -48,3 +53,5 @@ jobs:
         run: cargo clippy --workspace --tests -- -D warnings
       - name: Run tests
         run: cargo test --workspace
+      - name: Run docs
+        run: cargo rustdoc --all-features -- -D warnings

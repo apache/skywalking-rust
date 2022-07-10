@@ -15,20 +15,50 @@
 // specific language governing permissions and limitations
 // under the License.
 //
+use skywalking::context::tracer::Tracer;
+use skywalking::reporter::grpc::GrpcReporter;
 use std::error::Error;
+use std::sync::Arc;
+use tokio::signal;
 
-use skywalking::context::trace_context::TracingContext;
-use skywalking::reporter::grpc::Reporter;
+async fn handle_request(tracer: Arc<Tracer<GrpcReporter>>) {
+    let mut ctx = tracer.create_trace_context();
+
+    {
+        // Generate an Entry Span when a request
+        // is received. An Entry Span is generated only once per context.
+        let span = ctx.create_entry_span("op1").unwrap();
+
+        // Something...
+
+        {
+            // Generates an Exit Span when executing an RPC.
+            let span2 = ctx.create_exit_span("op2", "remote_peer").unwrap();
+
+            // Something...
+
+            ctx.finalize_span(span2);
+        }
+
+        ctx.finalize_span(span);
+    }
+
+    tracer.finalize_context(ctx);
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let reporter = Reporter::start("http://0.0.0.0:11800").await?;
-    let mut context = TracingContext::default("service", "instance");
-    {
-        let span = context.create_entry_span("op1").unwrap();
-        context.finalize_span(span);
-    }
-    reporter.sender().send(context).await?;
-    reporter.shutdown().await?;
+    let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
+    let tracer = Arc::new(Tracer::new("service", "instance", reporter));
+
+    tokio::spawn(handle_request(tracer.clone()));
+
+    // Start to report.
+    let handle = tracer.reporting(async move {
+        let _ = signal::ctrl_c().await;
+    });
+
+    handle.await?;
+
     Ok(())
 }
