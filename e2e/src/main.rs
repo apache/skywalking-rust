@@ -25,6 +25,7 @@ use skywalking::context::tracer::Tracer;
 use skywalking::reporter::grpc::GrpcReporter;
 use std::convert::Infallible;
 use std::error::Error;
+use std::future::pending;
 use std::net::SocketAddr;
 use structopt::StructOpt;
 use tokio::sync::OnceCell;
@@ -156,15 +157,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
     let reporter = GrpcReporter::connect("http://collector:19876").await?;
 
-    if opt.mode == "consumer" {
+    let handle = if opt.mode == "consumer" {
         set_global_tracer(Tracer::new("consumer", "node_0", reporter));
+        let handle = get_global_tracer().reporting(pending());
         run_consumer_service([0, 0, 0, 0]).await;
+        handle
     } else if opt.mode == "producer" {
         set_global_tracer(Tracer::new("producer", "node_0", reporter));
+        let handle = get_global_tracer().reporting(pending());
         run_producer_service([0, 0, 0, 0]).await;
-    }
+        handle
+    } else {
+        unreachable!()
+    };
 
-    get_global_tracer().reporting(async move {}).await?;
+    handle.await?;
 
     Ok(())
 }
