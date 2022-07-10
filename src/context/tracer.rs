@@ -117,6 +117,15 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
                     _ =  shutdown_rx.recv() => break,
                 }
             }
+
+            // Flush.
+            let mut segment_receiver = segment_receiver.lock().await;
+            let mut segments = LinkedList::new();
+            while let Ok(segment) = segment_receiver.try_recv() {
+                segments.push_back(segment);
+            }
+            let mut reporter = reporter.lock().await;
+            Self::report_segment_object(&mut reporter, segments).await;
         });
 
         shutdown_signal.await;
