@@ -25,7 +25,7 @@ members = [
 [package]
 name = "skywalking"
 version = "0.2.0"
-authors = ["Apache SkyWalking Developers (dev@skywalking.apache.org)"]
+authors = ["Apache Software Foundation"]
 edition = "2021"
 description = "Apache SkyWalking Rust Agent"
 license = "Apache-2.0"
