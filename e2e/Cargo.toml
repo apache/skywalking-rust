@@ -18,9 +18,10 @@
 [package]
 name = "e2e"
 version = "0.2.0"
-authors = ["Shikugawa <Shikugawa@gmail.com>"]
+authors = ["Apache Software Foundation"]
 edition = "2021"
 publish = false
+license = "Apache-2.0"
 
 [dependencies]
 skywalking = { path = ".." }
