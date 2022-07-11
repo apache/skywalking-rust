@@ -16,6 +16,12 @@
 # under the License.
 #
 
+[workspace]
+members = [
+    ".",
+    "e2e",
+]
+
 [package]
 name = "skywalking"
 version = "0.2.0"
