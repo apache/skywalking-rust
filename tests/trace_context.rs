@@ -53,8 +53,7 @@ impl TimeFetcher for MockTimeFetcher {
 #[test]
 fn create_span() {
     let time_fetcher = MockTimeFetcher {};
-    let mut context =
-        TracingContext::default_internal(Arc::new(time_fetcher), "service", "instance");
+    let mut context = TracingContext::new(Arc::new(time_fetcher), "service", "instance");
     assert_eq!(context.service, "service");
     assert_eq!(context.service_instance, "instance");
 
@@ -201,8 +200,7 @@ fn create_span_from_context() {
 #[test]
 fn crossprocess_test() {
     let time_fetcher1 = MockTimeFetcher {};
-    let mut context1 =
-        TracingContext::default_internal(Arc::new(time_fetcher1), "service", "instance");
+    let mut context1 = TracingContext::new(Arc::new(time_fetcher1), "service", "instance");
     assert_eq!(context1.service, "service");
     assert_eq!(context1.service_instance, "instance");
 

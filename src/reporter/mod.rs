@@ -17,13 +17,12 @@
 pub mod grpc;
 
 use crate::skywalking_proto::v3::SegmentObject;
-use futures_core::Stream;
+use std::collections::LinkedList;
 use tonic::async_trait;
+
+pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
 
 #[async_trait]
 pub trait Reporter {
-    async fn collect(
-        &mut self,
-        stream: impl Stream<Item = SegmentObject> + Send + 'static,
-    ) -> crate::Result<()>;
+    async fn collect(&mut self, stream: LinkedList<SegmentObject>) -> crate::Result<()>;
 }

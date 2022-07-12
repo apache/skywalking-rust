@@ -16,11 +16,13 @@
 
 use super::propagation::context::PropagationContext;
 use crate::{
-    context::trace_context::TracingContext, reporter::Reporter, skywalking_proto::v3::SegmentObject,
+    context::trace_context::TracingContext, reporter::DynReporter, reporter::Reporter,
+    skywalking_proto::v3::SegmentObject,
 };
-use futures_util::stream;
 use std::future::Future;
+use std::sync::Weak;
 use std::{collections::LinkedList, sync::Arc};
+use tokio::sync::OnceCell;
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver},
@@ -29,32 +31,75 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// Skywalking tracer.
-pub struct Tracer<R: Reporter + Send + Sync + 'static> {
-    service_name: String,
-    instance_name: String,
-    reporter: Arc<Mutex<R>>,
-    segment_sender: mpsc::UnboundedSender<SegmentObject>,
-    segment_receiver: Arc<Mutex<mpsc::UnboundedReceiver<SegmentObject>>>,
+static GLOBAL_TRACER: OnceCell<Tracer> = OnceCell::const_new();
+
+pub fn set_global_tracer(tracer: Tracer) {
+    if GLOBAL_TRACER.set(tracer).is_err() {
+        panic!("global tracer has setted")
+    }
 }
 
-impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
+pub fn global_tracer() -> &'static Tracer {
+    GLOBAL_TRACER.get().expect("global tracer haven't setted")
+}
+
+/// Create trace conetxt.
+pub fn create_trace_context() -> TracingContext {
+    global_tracer().create_trace_context()
+}
+
+/// Create trace conetxt from propagation.
+pub fn create_trace_context_from_propagation(context: PropagationContext) -> TracingContext {
+    global_tracer().create_trace_context_from_propagation(context)
+}
+
+pub fn finalize_context(context: TracingContext) {
+    global_tracer().finalize_context(context)
+}
+
+pub fn reporting(
+    shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
+) -> JoinHandle<()> {
+    global_tracer().reporting(shutdown_signal)
+}
+
+struct Inner {
+    service_name: String,
+    instance_name: String,
+    segment_sender: mpsc::UnboundedSender<SegmentObject>,
+    segment_receiver: Mutex<mpsc::UnboundedReceiver<SegmentObject>>,
+    reporter: Box<Mutex<DynReporter>>,
+}
+
+/// Skywalking tracer.
+#[derive(Clone)]
+pub struct Tracer {
+    inner: Arc<Inner>,
+}
+
+impl Tracer {
     /// New with service info and reporter.
-    pub fn new(service_name: impl ToString, instance_name: impl ToString, reporter: R) -> Self {
+    pub fn new(
+        service_name: impl ToString,
+        instance_name: impl ToString,
+        reporter: impl Reporter + Send + Sync + 'static,
+    ) -> Self {
         let (segment_sender, segment_receiver) = mpsc::unbounded_channel();
 
         Self {
-            service_name: service_name.to_string(),
-            instance_name: instance_name.to_string(),
-            reporter: Arc::new(Mutex::new(reporter)),
-            segment_sender,
-            segment_receiver: Arc::new(Mutex::new(segment_receiver)),
+            inner: Arc::new(Inner {
+                service_name: service_name.to_string(),
+                instance_name: instance_name.to_string(),
+                segment_sender,
+                segment_receiver: Mutex::new(segment_receiver),
+                reporter: Box::new(Mutex::new(reporter)),
+            }),
         }
     }
 
     /// Create trace conetxt.
     pub fn create_trace_context(&self) -> TracingContext {
-        TracingContext::default(&self.service_name, &self.instance_name)
+        TracingContext::new(&self.inner.service_name, &self.inner.instance_name)
     }
 
     /// Create trace conetxt from propagation.
@@ -62,13 +107,17 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
         &self,
         context: PropagationContext,
     ) -> TracingContext {
-        TracingContext::from_propagation_context(&self.service_name, &self.instance_name, context)
+        TracingContext::from_propagation_context(
+            &self.inner.service_name,
+            &self.inner.instance_name,
+            context,
+        )
     }
 
     /// Finalize the trace context.
     pub fn finalize_context(&self, context: TracingContext) {
         let segment_object = context.convert_segment_object();
-        if self.segment_sender.send(segment_object).is_err() {
+        if self.inner.segment_sender.send(segment_object).is_err() {
             tracing::warn!("segment object channel has closed");
         }
     }
@@ -80,25 +129,15 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
         &self,
         shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
     ) -> JoinHandle<()> {
-        let reporter = self.reporter.clone();
-        let segment_receiver = self.segment_receiver.clone();
-        tokio::spawn(Self::do_reporting(
-            reporter,
-            segment_receiver,
-            shutdown_signal,
-        ))
+        tokio::spawn(Self::do_reporting(self.clone(), shutdown_signal))
     }
 
-    async fn do_reporting(
-        reporter: Arc<Mutex<R>>,
-        segment_receiver: Arc<Mutex<UnboundedReceiver<SegmentObject>>>,
-        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) {
+    async fn do_reporting(self, shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static) {
         let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
 
         let handle = tokio::spawn(async move {
             loop {
-                let mut segment_receiver = segment_receiver.lock().await;
+                let mut segment_receiver = self.inner.segment_receiver.lock().await;
                 let mut segments = LinkedList::new();
 
                 tokio::select! {
@@ -108,8 +147,7 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
                         if let Some(segment) = segment {
                             // TODO Implement batch collect in future.
                             segments.push_back(segment);
-                            let mut reporter = reporter.lock().await;
-                            Self::report_segment_object(&mut reporter, segments).await;
+                            Self::report_segment_object(&self.inner.reporter, segments).await;
                         } else {
                             break;
                         }
@@ -119,13 +157,12 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
             }
 
             // Flush.
-            let mut segment_receiver = segment_receiver.lock().await;
+            let mut segment_receiver = self.inner.segment_receiver.lock().await;
             let mut segments = LinkedList::new();
             while let Ok(segment) = segment_receiver.try_recv() {
                 segments.push_back(segment);
             }
-            let mut reporter = reporter.lock().await;
-            Self::report_segment_object(&mut reporter, segments).await;
+            Self::report_segment_object(&self.inner.reporter, segments).await;
         });
 
         shutdown_signal.await;
@@ -138,10 +175,27 @@ impl<R: Reporter + Send + Sync + 'static> Tracer<R> {
         }
     }
 
-    async fn report_segment_object(reporter: &mut R, segments: LinkedList<SegmentObject>) {
-        let stream = stream::iter(segments);
-        if let Err(e) = reporter.collect(stream).await {
+    async fn report_segment_object(
+        reporter: &Mutex<DynReporter>,
+        segments: LinkedList<SegmentObject>,
+    ) {
+        if let Err(e) = reporter.lock().await.collect(segments).await {
             tracing::error!("Collect failed: {:?}", e);
         }
+    }
+
+    fn downgrade(&self) -> WeakTracer {
+        WeakTracer { inner: Arc::downgrade(&self.inner) }
+    }
+}
+
+#[derive(Clone)]
+struct WeakTracer {
+    inner: Weak<Inner>,
+}
+
+impl WeakTracer {
+    fn upgrade(&self) -> Option<Tracer> {
+        Weak::upgrade(&self.inner).map(|inner| Tracer { inner })
     }
 }

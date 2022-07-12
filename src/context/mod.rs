@@ -15,6 +15,7 @@
 //
 
 pub mod propagation;
+#[doc(hidden)]
 pub mod system_time;
 pub mod trace_context;
 pub mod tracer;

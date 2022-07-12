@@ -14,18 +14,20 @@
 // limitations under the License.
 //
 
+use super::system_time::{fetch_time, TimePeriod};
 use crate::common::random_generator::RandomGenerator;
-use crate::common::time::TimeFetcher;
 use crate::context::propagation::context::PropagationContext;
 use crate::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };
+use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::collections::LinkedList;
 use std::fmt::Formatter;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
-
-use super::system_time::UnixTimeStampFetcher;
 
 /// Span is a concept that represents trace information for a single RPC.
 /// The Rust SDK supports Entry Span to represent inbound to a service
@@ -58,9 +60,9 @@ use super::system_time::UnixTimeStampFetcher;
 ///     }
 /// }
 /// ```
+#[derive(Clone)]
 pub struct Span {
-    span_internal: SpanObject,
-    time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
+    span_internal: Rc<RefCell<SpanObject>>,
 }
 
 impl std::fmt::Debug for Span {
@@ -83,12 +85,11 @@ impl Span {
         span_type: SpanType,
         span_layer: SpanLayer,
         skip_analysis: bool,
-        time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
     ) -> Self {
         let span_internal = SpanObject {
             span_id,
             parent_span_id,
-            start_time: time_fetcher.get(),
+            start_time: fetch_time(TimePeriod::Start),
             end_time: 0, // not set
             refs: Vec::<SegmentReference>::new(),
             operation_name,
@@ -103,28 +104,36 @@ impl Span {
         };
 
         Span {
-            span_internal,
-            time_fetcher,
+            span_internal: Rc::new(RefCell::new(span_internal)),
         }
     }
 
     /// Close span. It only registers end time to the span.
     pub fn close(&mut self) {
-        self.span_internal.end_time = self.time_fetcher.get();
+        self.with_span_object_mut(|span| span.end_time = fetch_time(TimePeriod::End));
     }
 
-    pub fn span_object(&self) -> &SpanObject {
-        &self.span_internal
+    pub fn with_span_object<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> T {
+        f(&self.span_internal.deref().borrow())
     }
 
-    pub fn span_object_mut(&mut self) -> &mut SpanObject {
-        &mut self.span_internal
+    pub fn with_span_object_mut<T>(&mut self, f: impl FnOnce(&mut SpanObject) -> T) -> T {
+        f(&mut self.span_internal.deref().borrow_mut())
+    }
+
+    pub fn span_id(&self) -> i32 {
+        self.with_span_object(|span| span.span_id)
     }
 
     /// Add logs to the span.
-    pub fn add_log(&mut self, message: Vec<(&str, &str)>) {
+    pub fn add_log<K, V, I>(&mut self, message: I)
+    where
+        K: ToString,
+        V: ToString,
+        I: IntoIterator<Item = (K, V)>,
+    {
         let log = Log {
-            time: self.time_fetcher.get(),
+            time: fetch_time(TimePeriod::Log),
             data: message
                 .into_iter()
                 .map(|v| {
@@ -136,21 +145,49 @@ impl Span {
                 })
                 .collect(),
         };
-        self.span_internal.logs.push(log);
+        self.with_span_object_mut(|span| span.logs.push(log));
     }
 
     /// Add tag to the span.
     pub fn add_tag(&mut self, tag: (&str, &str)) {
         let (key, value) = tag;
-        self.span_internal.tags.push(KeyStringValuePair {
-            key: key.to_string(),
-            value: value.to_string(),
-        });
+        self.with_span_object_mut(|span| {
+            span.tags.push(KeyStringValuePair {
+                key: key.to_string(),
+                value: value.to_string(),
+            })
+        })
     }
 
     fn add_segment_reference(&mut self, segment_reference: SegmentReference) {
-        self.span_internal.refs.push(segment_reference);
+        self.with_span_object_mut(|span| span.refs.push(segment_reference));
     }
+
+    fn downgrade(&self) -> WeakSpan {
+        WeakSpan {
+            span_internal: Rc::downgrade(&self.span_internal),
+        }
+    }
+}
+
+pub(crate) struct WeakSpan {
+    span_internal: Weak<RefCell<SpanObject>>,
+}
+
+impl WeakSpan {
+    pub fn span_id(&self) -> Option<i32> {
+        self.upgrade().map(|span| span.span_id())
+    }
+
+    fn upgrade(&self) -> Option<Span> {
+        self.span_internal
+            .upgrade()
+            .map(|span_internal| Span { span_internal })
+    }
+}
+
+struct Inner {
+
 }
 
 pub struct TracingContext {
@@ -159,10 +196,10 @@ pub struct TracingContext {
     pub service: String,
     pub service_instance: String,
     pub next_span_id: i32,
-    pub spans: Vec<Box<Span>>,
-    time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
+    pub spans: Vec<Span>,
     segment_link: Option<PropagationContext>,
-    active_span_id_stack: LinkedList<i32>,
+    active_span_stack: LinkedList<WeakSpan>,
+    primary_endpoint_name: String,
 }
 
 impl std::fmt::Debug for TracingContext {
@@ -181,26 +218,17 @@ impl std::fmt::Debug for TracingContext {
 impl TracingContext {
     /// Generate a new trace context. Typically called when no context has
     /// been propagated and a new trace is to be started.
-    pub fn default(service_name: &str, instance_name: &str) -> Self {
-        let unix_time_fetcher = UnixTimeStampFetcher {};
-        TracingContext::default_internal(Arc::new(unix_time_fetcher), service_name, instance_name)
-    }
-
-    pub fn default_internal(
-        time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
-        service_name: &str,
-        instance_name: &str,
-    ) -> Self {
+    pub fn new(service_name: impl ToString, instance_name: impl ToString) -> Self {
         TracingContext {
             trace_id: RandomGenerator::generate(),
             trace_segment_id: RandomGenerator::generate(),
-            service: String::from(service_name),
-            service_instance: String::from(instance_name),
+            service: service_name.to_string(),
+            service_instance: instance_name.to_string(),
             next_span_id: 0,
-            time_fetcher,
             spans: Vec::new(),
             segment_link: None,
-            active_span_id_stack: LinkedList::new(),
+            active_span_stack: LinkedList::new(),
+            primary_endpoint_name: Default::default(),
         }
     }
 
@@ -208,23 +236,8 @@ impl TracingContext {
     /// They should be propagated on `sw8` header in HTTP request with encoded form.
     /// You can retrieve decoded context with `skywalking::context::propagation::encoder::encode_propagation`
     pub fn from_propagation_context(
-        service_name: &str,
-        instance_name: &str,
-        context: PropagationContext,
-    ) -> Self {
-        let unix_time_fetcher = UnixTimeStampFetcher {};
-        TracingContext::from_propagation_context_internal(
-            Arc::new(unix_time_fetcher),
-            service_name,
-            instance_name,
-            context,
-        )
-    }
-
-    pub fn from_propagation_context_internal(
-        time_fetcher: Arc<dyn TimeFetcher + Sync + Send>,
-        service_name: &str,
-        instance_name: &str,
+        service_name: impl ToString,
+        instance_name: impl ToString,
         context: PropagationContext,
     ) -> Self {
         TracingContext {
@@ -233,10 +246,10 @@ impl TracingContext {
             service: service_name.to_string(),
             service_instance: instance_name.to_string(),
             next_span_id: 0,
-            time_fetcher,
             spans: Vec::new(),
             segment_link: Some(context),
-            active_span_id_stack: LinkedList::new(),
+            active_span_stack: LinkedList::new(),
+            primary_endpoint_name: Default::default(),
         }
     }
 
@@ -251,7 +264,7 @@ impl TracingContext {
     ) -> crate::Result<()> {
         match self.create_entry_span(operation_name) {
             Ok(mut span) => {
-                process_fn(span.as_ref());
+                process_fn(&span);
                 span.close();
                 Ok(())
             }
@@ -262,14 +275,14 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered by
     /// external service.
-    pub fn create_entry_span(&mut self, operation_name: &str) -> crate::Result<Box<Span>> {
+    pub fn create_entry_span(&mut self, operation_name: &str) -> crate::Result<Span> {
         if self.next_span_id >= 1 {
             return Err(crate::Error::CreateSpan("entry span have already exist."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
 
-        let mut span = Box::new(Span::new(
+        let mut span = Span::new(
             self.next_span_id,
             parent_span_id,
             operation_name.to_string(),
@@ -277,8 +290,7 @@ impl TracingContext {
             SpanType::Entry,
             SpanLayer::Http,
             false,
-            self.time_fetcher.clone(),
-        ));
+        );
 
         if self.segment_link.is_some() {
             span.add_segment_reference(SegmentReference {
@@ -313,8 +325,7 @@ impl TracingContext {
             });
         }
         self.next_span_id += 1;
-        self.active_span_id_stack
-            .push_back(span.span_internal.span_id);
+        self.push_active_span(&span);
         Ok(span)
     }
 
@@ -330,7 +341,7 @@ impl TracingContext {
     ) -> crate::Result<()> {
         match self.create_exit_span(operation_name, remote_peer) {
             Ok(mut span) => {
-                process_fn(span.as_ref());
+                process_fn(&span);
                 span.close();
                 Ok(())
             }
@@ -345,14 +356,14 @@ impl TracingContext {
         &mut self,
         operation_name: &str,
         remote_peer: &str,
-    ) -> crate::Result<Box<Span>> {
+    ) -> crate::Result<Span> {
         if self.next_span_id == 0 {
             return Err(crate::Error::CreateSpan("entry span must be existed."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
 
-        let span = Box::new(Span::new(
+        let span = Span::new(
             self.next_span_id,
             parent_span_id,
             operation_name.to_string(),
@@ -360,28 +371,49 @@ impl TracingContext {
             SpanType::Exit,
             SpanLayer::Http,
             false,
-            self.time_fetcher.clone(),
-        ));
+        );
         self.next_span_id += 1;
-        self.active_span_id_stack
-            .push_back(span.span_internal.span_id);
+        self.push_active_span(&span);
+        Ok(span)
+    }
+
+    // Create a new local span.
+    pub fn create_local_span(&mut self, operation_name: &str) -> crate::Result<Span> {
+        if self.next_span_id == 0 {
+            return Err(crate::Error::CreateSpan("entry span must be existed."));
+        }
+
+        let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
+
+        let span = Span::new(
+            self.next_span_id,
+            parent_span_id,
+            operation_name.to_string(),
+            Default::default(),
+            SpanType::Local,
+            SpanLayer::Unknown,
+            false,
+        );
+        self.next_span_id += 1;
+        self.push_active_span(&span);
         Ok(span)
     }
 
     /// Close span. We can't use closed span after finalize called.
-    pub fn finalize_span(&mut self, mut span: Box<Span>) {
+    pub fn finalize_span(&mut self, mut span: Span) {
         span.close();
         self.spans.push(span);
-        self.active_span_id_stack.pop_back();
+        self.pop_active_span();
     }
 
     /// It converts tracing context into segment object.
     /// This conversion should be done before sending segments into OAP.
-    pub fn convert_segment_object(&self) -> SegmentObject {
-        let mut objects = Vec::<SpanObject>::new();
+    pub fn convert_segment_object(self) -> SegmentObject {
+        let mut objects = Vec::<SpanObject>::with_capacity(self.spans.len());
 
-        for span in self.spans.iter() {
-            objects.push(span.span_internal.clone());
+        for span in self.spans {
+            let span = Rc::try_unwrap(span.span_internal).unwrap();
+            objects.push(span.into_inner());
         }
 
         SegmentObject {
@@ -394,7 +426,70 @@ impl TracingContext {
         }
     }
 
+    pub fn capture(&self) -> ContextSnapshot {
+        ContextSnapshot {
+            trace_id: self.trace_id.clone(),
+            trace_segment_id: self.trace_segment_id.clone(),
+            span_id: self.peek_active_span_id().unwrap_or(-1),
+            parent_endpoint: self.primary_endpoint_name.clone(),
+        }
+    }
+
+    pub fn continued(&mut self, snapshot: ContextSnapshot) {
+        if snapshot.is_valid() {
+            let segment_ref = SegmentReference {
+                ref_type: RefType::CrossThread as i32,
+                trace_id: snapshot.trace_id,
+                parent_trace_segment_id: snapshot.trace_segment_id,
+                parent_span_id: snapshot.span_id,
+                parent_service: todo!(),
+                parent_service_instance: todo!(),
+                parent_endpoint: snapshot.parent_endpoint,
+                network_address_used_at_peer: Default::default(),
+            };
+            let mut span = self.peek_active_span().unwrap().upgrade().unwrap();
+            span.add_segment_reference(segment_ref);
+            // TraceSegmentRef segmentRef = new TraceSegmentRef(snapshot);
+            // this.segment.ref(segmentRef);
+            // this.activeSpan().ref(segmentRef);
+            // this.segment.relatedGlobalTrace(snapshot.getTraceId());
+            // this.correlationContext.continued(snapshot);
+            // this.extensionContext.continued(snapshot);
+            // this.extensionContext.handle(this.activeSpan());
+        }
+    }
+
     pub(crate) fn peek_active_span_id(&self) -> Option<i32> {
-        self.active_span_id_stack.back().copied()
+        self.peek_active_span().map(|span| span.span_id().unwrap())
+    }
+
+    pub(crate) fn peek_active_span(&self) -> Option<&WeakSpan> {
+        self.active_span_stack.back()
+    }
+
+    fn push_active_span(&mut self, span: &Span) {
+        self.primary_endpoint_name = span.with_span_object(|span| span.operation_name.clone());
+        self.active_span_stack.push_back(span.downgrade());
+    }
+
+    fn pop_active_span(&mut self) {
+        self.active_span_stack.pop_back();
+    }
+}
+
+pub struct ContextSnapshot {
+    trace_id: String,
+    trace_segment_id: String,
+    span_id: i32,
+    parent_endpoint: String,
+}
+
+impl ContextSnapshot {
+    pub fn is_from_current(&self, context: &TracingContext) -> bool {
+        !self.trace_segment_id.is_empty() && self.trace_segment_id == context.trace_segment_id
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.trace_segment_id.is_empty() && self.span_id > -1 && !self.trace_id.is_empty()
     }
 }

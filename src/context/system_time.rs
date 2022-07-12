@@ -14,17 +14,30 @@
 // limitations under the License.
 //
 
-use crate::common::time::TimeFetcher;
-use std::time::{SystemTime, UNIX_EPOCH};
+use cfg_if::cfg_if;
 
-#[derive(Default)]
-pub struct UnixTimeStampFetcher {}
+pub enum TimePeriod {
+    Start,
+    Log,
+    End,
+}
 
-impl TimeFetcher for UnixTimeStampFetcher {
-    fn get(&self) -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64
+cfg_if! {
+    if #[cfg(test)] {
+        pub fn fetch_time(period: TimePeriod) -> i64 {
+            match period {
+                TimePeriod::Start => 1,
+                TimePeriod::Log => 10,
+                TimePeriod::End => 100,
+            }
+        }
+    } else {
+        pub fn fetch_time(_period: TimePeriod) -> i64 {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|dur| dur.as_millis() as i64)
+                .unwrap_or_default()
+        }
     }
 }
