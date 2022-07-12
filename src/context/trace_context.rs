@@ -64,6 +64,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Span {
     span_internal: Rc<RefCell<SpanObject>>,
+    context: WeakTracingContext,
 }
 
 impl std::fmt::Debug for Span {
@@ -542,6 +543,12 @@ impl TracingContext {
     fn unwrap_inner(self) -> Inner {
         Rc::try_unwrap(self.inner).unwrap()
     }
+}
+
+#[derive(Clone)]
+struct WeakTracingContext {
+    inner: Weak<Inner>,
+    tracer: WeakTracer,
 }
 
 pub struct ContextSnapshot {
