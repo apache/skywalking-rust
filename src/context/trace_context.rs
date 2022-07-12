@@ -15,6 +15,7 @@
 //
 
 use super::system_time::{fetch_time, TimePeriod};
+use super::tracer::WeakTracer;
 use crate::common::random_generator::RandomGenerator;
 use crate::context::propagation::context::PropagationContext;
 use crate::skywalking_proto::v3::{
@@ -22,7 +23,7 @@ use crate::skywalking_proto::v3::{
     SpanType,
 };
 use std::borrow::Borrow;
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
 use std::collections::LinkedList;
 use std::fmt::Formatter;
 use std::ops::Deref;
@@ -163,46 +164,46 @@ impl Span {
         self.with_span_object_mut(|span| span.refs.push(segment_reference));
     }
 
-    fn downgrade(&self) -> WeakSpan {
-        WeakSpan {
-            span_internal: Rc::downgrade(&self.span_internal),
-        }
-    }
-}
-
-pub(crate) struct WeakSpan {
-    span_internal: Weak<RefCell<SpanObject>>,
-}
-
-impl WeakSpan {
-    pub fn span_id(&self) -> Option<i32> {
-        self.upgrade().map(|span| span.span_id())
+    fn unwrap_inner(self) -> SpanObject {
+        Rc::try_unwrap(self.span_internal).unwrap().into_inner()
     }
 
-    fn upgrade(&self) -> Option<Span> {
-        self.span_internal
-            .upgrade()
-            .map(|span_internal| Span { span_internal })
-    }
+    // fn downgrade(&self) -> WeakSpan {
+    //     WeakSpan {
+    //         span_internal: Rc::downgrade(&self.span_internal),
+    //     }
+    // }
 }
+
+// pub(crate) struct WeakSpan {
+//     span_internal: Weak<RefCell<SpanObject>>,
+// }
+
+// impl WeakSpan {
+//     pub fn span_id(&self) -> Option<i32> {
+//         self.upgrade().map(|span| span.span_id())
+//     }
+
+//     fn upgrade(&self) -> Option<Span> {
+//         self.span_internal
+//             .upgrade()
+//             .map(|span_internal| Span { span_internal })
+//     }
+// }
 
 struct Inner {
-
-}
-
-pub struct TracingContext {
-    pub trace_id: String,
-    pub trace_segment_id: String,
-    pub service: String,
-    pub service_instance: String,
-    pub next_span_id: i32,
-    pub spans: Vec<Span>,
+    trace_id: String,
+    trace_segment_id: String,
+    service: String,
+    service_instance: String,
+    next_span_id: Cell<i32>,
+    spans: RefCell<Vec<Span>>,
     segment_link: Option<PropagationContext>,
-    active_span_stack: LinkedList<WeakSpan>,
-    primary_endpoint_name: String,
+    active_span_stack: RefCell<LinkedList<Span>>,
+    primary_endpoint_name: RefCell<String>,
 }
 
-impl std::fmt::Debug for TracingContext {
+impl std::fmt::Debug for Inner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TracingContext")
             .field("trace_id", &self.trace_id)
@@ -215,42 +216,118 @@ impl std::fmt::Debug for TracingContext {
     }
 }
 
+#[derive(Clone)]
+pub struct TracingContext {
+    inner: Rc<Inner>,
+    tracer: WeakTracer,
+}
+
+impl std::fmt::Debug for TracingContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+std::fmt::Debug::fmt(&self.inner,f)
+    }
+}
+
 impl TracingContext {
     /// Generate a new trace context. Typically called when no context has
     /// been propagated and a new trace is to be started.
-    pub fn new(service_name: impl ToString, instance_name: impl ToString) -> Self {
+    pub(crate) fn new(
+        service_name: impl ToString,
+        instance_name: impl ToString,
+        tracer: WeakTracer,
+    ) -> Self {
         TracingContext {
-            trace_id: RandomGenerator::generate(),
-            trace_segment_id: RandomGenerator::generate(),
-            service: service_name.to_string(),
-            service_instance: instance_name.to_string(),
-            next_span_id: 0,
-            spans: Vec::new(),
-            segment_link: None,
-            active_span_stack: LinkedList::new(),
-            primary_endpoint_name: Default::default(),
+            inner: Rc::new(Inner {
+                trace_id: RandomGenerator::generate(),
+                trace_segment_id: RandomGenerator::generate(),
+                service: service_name.to_string(),
+                service_instance: instance_name.to_string(),
+                next_span_id: Default::default(),
+                spans: Default::default(),
+                segment_link: None,
+                active_span_stack: Default::default(),
+                primary_endpoint_name: Default::default(),
+            }),
+            tracer,
         }
     }
 
     /// Generate a new trace context using the propagated context.
     /// They should be propagated on `sw8` header in HTTP request with encoded form.
     /// You can retrieve decoded context with `skywalking::context::propagation::encoder::encode_propagation`
-    pub fn from_propagation_context(
+    pub(crate) fn from_propagation_context(
         service_name: impl ToString,
         instance_name: impl ToString,
         context: PropagationContext,
+        tracer: WeakTracer,
     ) -> Self {
         TracingContext {
-            trace_id: context.parent_trace_id.clone(),
-            trace_segment_id: RandomGenerator::generate(),
-            service: service_name.to_string(),
-            service_instance: instance_name.to_string(),
-            next_span_id: 0,
-            spans: Vec::new(),
-            segment_link: Some(context),
-            active_span_stack: LinkedList::new(),
-            primary_endpoint_name: Default::default(),
+            inner: Rc::new(Inner {
+                trace_id: context.parent_trace_id.clone(),
+                trace_segment_id: RandomGenerator::generate(),
+                service: service_name.to_string(),
+                service_instance: instance_name.to_string(),
+                next_span_id: Default::default(),
+                spans: Default::default(),
+                segment_link: Some(context),
+                active_span_stack: Default::default(),
+                primary_endpoint_name: Default::default(),
+            }),
+            tracer,
         }
+    }
+    
+    #[inline]
+    pub fn trace_id(&self) -> &str {
+        &self.inner.trace_id
+    }
+
+    #[inline]
+    pub fn trace_segment_id(&self) -> &str {
+        &self.inner.trace_segment_id
+    }
+
+    #[inline]
+    pub fn service(&self) -> &str {
+        &self.inner.service
+    }
+
+    #[inline]
+    pub fn service_instance(&self) -> &str {
+        &self.inner.service_instance
+    }
+
+    #[inline]
+    fn next_span_id(&self) -> i32 {
+        self.inner.next_span_id.get()
+    } 
+
+    fn inc_next_span_id(&self) {
+        self.inner.next_span_id.set(self.next_span_id() + 1)
+    } 
+
+    fn with_spans<T>(&self, f: impl FnOnce(&Vec<Span>) -> T) -> T {
+        f(&self.inner.spans.borrow())
+    }
+
+    fn with_spans_mut<T>(&mut self, f: impl FnOnce(&mut Vec<Span>) -> T) -> T {
+        f(&mut self.inner.spans.borrow_mut())
+    }
+
+    fn with_active_span_stack<T>(&self, f: impl FnOnce(&LinkedList<Span>) -> T) -> T {
+        f(&self.inner.active_span_stack.borrow())
+    }
+
+    fn with_active_span_stack_mut<T>(&mut self, f: impl FnOnce(&mut LinkedList<Span>) -> T) -> T {
+        f(&mut self.inner.active_span_stack.borrow_mut())
+    }
+
+    fn with_primary_endpoint_name<T>(&self, f: impl FnOnce(&String) -> T) -> T {
+        f(&self.inner.primary_endpoint_name.borrow())
+    }
+
+    fn with_primary_endpoint_name_mut<T>(&mut self, f: impl FnOnce(&mut String) -> T) -> T {
+        f(&mut self.inner.primary_endpoint_name.borrow_mut())
     }
 
     /// A wrapper of create entry span, which close generated span automatically.
@@ -276,14 +353,14 @@ impl TracingContext {
     /// This should be called by invocation of the function which is triggered by
     /// external service.
     pub fn create_entry_span(&mut self, operation_name: &str) -> crate::Result<Span> {
-        if self.next_span_id >= 1 {
+        if self.next_span_id() >= 1 {
             return Err(crate::Error::CreateSpan("entry span have already exist."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
 
         let mut span = Span::new(
-            self.next_span_id,
+            self.inner.next_span_id.get(),
             parent_span_id,
             operation_name.to_string(),
             String::default(),
@@ -292,39 +369,19 @@ impl TracingContext {
             false,
         );
 
-        if self.segment_link.is_some() {
+        if let Some(segment_link) = &self.inner.segment_link {
             span.add_segment_reference(SegmentReference {
                 ref_type: RefType::CrossProcess as i32,
-                trace_id: self.trace_id.clone(),
-                parent_trace_segment_id: self
-                    .segment_link
-                    .as_ref()
-                    .unwrap()
-                    .parent_trace_segment_id
-                    .clone(),
-                parent_span_id: self.segment_link.as_ref().unwrap().parent_span_id,
-                parent_service: self.segment_link.as_ref().unwrap().parent_service.clone(),
-                parent_service_instance: self
-                    .segment_link
-                    .as_ref()
-                    .unwrap()
-                    .parent_service_instance
-                    .clone(),
-                parent_endpoint: self
-                    .segment_link
-                    .as_ref()
-                    .unwrap()
-                    .destination_endpoint
-                    .clone(),
-                network_address_used_at_peer: self
-                    .segment_link
-                    .as_ref()
-                    .unwrap()
-                    .destination_address
-                    .clone(),
+                trace_id: self.inner.trace_id.clone(),
+                parent_trace_segment_id: segment_link.parent_trace_segment_id.clone(),
+                parent_span_id: segment_link.parent_span_id,
+                parent_service: segment_link.parent_service.clone(),
+                parent_service_instance: segment_link.parent_service_instance.clone(),
+                parent_endpoint: segment_link.destination_endpoint.clone(),
+                network_address_used_at_peer: segment_link.destination_address.clone(),
             });
         }
-        self.next_span_id += 1;
+        self.inc_next_span_id();
         self.push_active_span(&span);
         Ok(span)
     }
@@ -357,14 +414,14 @@ impl TracingContext {
         operation_name: &str,
         remote_peer: &str,
     ) -> crate::Result<Span> {
-        if self.next_span_id == 0 {
+        if self.next_span_id() == 0 {
             return Err(crate::Error::CreateSpan("entry span must be existed."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
 
         let span = Span::new(
-            self.next_span_id,
+            self.inner.next_span_id.get(),
             parent_span_id,
             operation_name.to_string(),
             remote_peer.to_string(),
@@ -372,21 +429,21 @@ impl TracingContext {
             SpanLayer::Http,
             false,
         );
-        self.next_span_id += 1;
+        self.inc_next_span_id();
         self.push_active_span(&span);
         Ok(span)
     }
 
     // Create a new local span.
     pub fn create_local_span(&mut self, operation_name: &str) -> crate::Result<Span> {
-        if self.next_span_id == 0 {
+        if self.next_span_id() == 0 {
             return Err(crate::Error::CreateSpan("entry span must be existed."));
         }
 
         let parent_span_id = self.peek_active_span_id().unwrap_or(-1);
 
         let span = Span::new(
-            self.next_span_id,
+            self.inner.next_span_id.get(),
             parent_span_id,
             operation_name.to_string(),
             Default::default(),
@@ -394,7 +451,7 @@ impl TracingContext {
             SpanLayer::Unknown,
             false,
         );
-        self.next_span_id += 1;
+        self.inc_next_span_id();
         self.push_active_span(&span);
         Ok(span)
     }
@@ -402,52 +459,58 @@ impl TracingContext {
     /// Close span. We can't use closed span after finalize called.
     pub fn finalize_span(&mut self, mut span: Span) {
         span.close();
-        self.spans.push(span);
+        self.with_spans_mut(|spans| spans.push(span));
         self.pop_active_span();
     }
 
     /// It converts tracing context into segment object.
     /// This conversion should be done before sending segments into OAP.
     pub fn convert_segment_object(self) -> SegmentObject {
-        let mut objects = Vec::<SpanObject>::with_capacity(self.spans.len());
+        let mut objects = Vec::with_capacity(self.with_spans(|spans| spans.len()));
 
-        for span in self.spans {
-            let span = Rc::try_unwrap(span.span_internal).unwrap();
-            objects.push(span.into_inner());
+        let trace_id = self.trace_id().to_owned();
+        let trace_segment_id = self.trace_segment_id().to_owned();
+        let service = self.service().to_owned();
+        let service_instance = self.service_instance().to_owned();
+        let inner = self.unwrap_inner();
+
+        for span in inner.spans.into_inner() {
+            objects.push(span.unwrap_inner());
         }
 
         SegmentObject {
-            trace_id: self.trace_id.to_string(),
-            trace_segment_id: self.trace_segment_id.to_string(),
+            trace_id,
+            trace_segment_id,
             spans: objects,
-            service: self.service.clone(),
-            service_instance: self.service_instance.clone(),
+            service,
+            service_instance,
             is_size_limited: false,
         }
     }
 
     pub fn capture(&self) -> ContextSnapshot {
         ContextSnapshot {
-            trace_id: self.trace_id.clone(),
-            trace_segment_id: self.trace_segment_id.clone(),
+            trace_id: self.inner.trace_id.clone(),
+            trace_segment_id: self.inner.trace_segment_id.clone(),
             span_id: self.peek_active_span_id().unwrap_or(-1),
-            parent_endpoint: self.primary_endpoint_name.clone(),
+            parent_endpoint: self.with_primary_endpoint_name(|endpoint| endpoint.clone()),
         }
     }
 
     pub fn continued(&mut self, snapshot: ContextSnapshot) {
         if snapshot.is_valid() {
+            let tracer = self.tracer.upgrade().unwrap();
             let segment_ref = SegmentReference {
                 ref_type: RefType::CrossThread as i32,
                 trace_id: snapshot.trace_id,
                 parent_trace_segment_id: snapshot.trace_segment_id,
                 parent_span_id: snapshot.span_id,
-                parent_service: todo!(),
-                parent_service_instance: todo!(),
+                parent_service: tracer.service_name().to_owned(),
+                parent_service_instance: tracer.instance_name().to_owned(),
                 parent_endpoint: snapshot.parent_endpoint,
                 network_address_used_at_peer: Default::default(),
             };
-            let mut span = self.peek_active_span().unwrap().upgrade().unwrap();
+            let mut span = self.peek_active_span().unwrap();
             span.add_segment_reference(segment_ref);
             // TraceSegmentRef segmentRef = new TraceSegmentRef(snapshot);
             // this.segment.ref(segmentRef);
@@ -460,20 +523,24 @@ impl TracingContext {
     }
 
     pub(crate) fn peek_active_span_id(&self) -> Option<i32> {
-        self.peek_active_span().map(|span| span.span_id().unwrap())
+        self.peek_active_span().map(|span| span.span_id())
     }
 
-    pub(crate) fn peek_active_span(&self) -> Option<&WeakSpan> {
-        self.active_span_stack.back()
+    pub(crate) fn peek_active_span(&self) -> Option<Span> {
+        self.with_active_span_stack(|stack| stack.back().cloned())
     }
 
     fn push_active_span(&mut self, span: &Span) {
-        self.primary_endpoint_name = span.with_span_object(|span| span.operation_name.clone());
-        self.active_span_stack.push_back(span.downgrade());
+        self.with_primary_endpoint_name_mut(|endpoint| *endpoint = span.with_span_object(|span| span.operation_name.clone()));
+        self.with_active_span_stack_mut(|stack| stack.push_back(span.clone()));
     }
 
     fn pop_active_span(&mut self) {
-        self.active_span_stack.pop_back();
+        self.with_active_span_stack_mut(|stack| stack.pop_back());
+    }
+
+    fn unwrap_inner(self) -> Inner {
+        Rc::try_unwrap(self.inner).unwrap()
     }
 }
 
@@ -486,7 +553,7 @@ pub struct ContextSnapshot {
 
 impl ContextSnapshot {
     pub fn is_from_current(&self, context: &TracingContext) -> bool {
-        !self.trace_segment_id.is_empty() && self.trace_segment_id == context.trace_segment_id
+        !self.trace_segment_id.is_empty() && self.trace_segment_id == context.trace_segment_id()
     }
 
     pub fn is_valid(&self) -> bool {

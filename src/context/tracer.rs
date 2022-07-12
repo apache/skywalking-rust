@@ -97,9 +97,21 @@ impl Tracer {
         }
     }
 
+    pub fn service_name(&self) -> &str {
+        &self.inner.service_name
+    }
+
+    pub fn instance_name(&self) -> &str {
+        &self.inner.instance_name
+    }
+
     /// Create trace conetxt.
     pub fn create_trace_context(&self) -> TracingContext {
-        TracingContext::new(&self.inner.service_name, &self.inner.instance_name)
+        TracingContext::new(
+            &self.inner.service_name,
+            &self.inner.instance_name,
+            self.downgrade(),
+        )
     }
 
     /// Create trace conetxt from propagation.
@@ -111,6 +123,7 @@ impl Tracer {
             &self.inner.service_name,
             &self.inner.instance_name,
             context,
+            self.downgrade(),
         )
     }
 
@@ -185,17 +198,19 @@ impl Tracer {
     }
 
     fn downgrade(&self) -> WeakTracer {
-        WeakTracer { inner: Arc::downgrade(&self.inner) }
+        WeakTracer {
+            inner: Arc::downgrade(&self.inner),
+        }
     }
 }
 
 #[derive(Clone)]
-struct WeakTracer {
+pub(crate) struct WeakTracer {
     inner: Weak<Inner>,
 }
 
 impl WeakTracer {
-    fn upgrade(&self) -> Option<Tracer> {
+    pub(crate) fn upgrade(&self) -> Option<Tracer> {
         Weak::upgrade(&self.inner).map(|inner| Tracer { inner })
     }
 }
