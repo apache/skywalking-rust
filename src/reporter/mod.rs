@@ -25,5 +25,5 @@ pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
 
 #[async_trait]
 pub trait Reporter {
-    async fn collect(&mut self, stream: LinkedList<SegmentObject>) -> crate::Result<()>;
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()>;
 }

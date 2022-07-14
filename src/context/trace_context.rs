@@ -142,7 +142,7 @@ impl TracingContext {
         self.inner.next_span_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    fn with_spans<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
+    pub fn with_spans<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
         f(&*self.inner.spans.try_lock().expect(LOCK_MSG))
     }
 
