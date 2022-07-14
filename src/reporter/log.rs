@@ -14,16 +14,25 @@
 // limitations under the License.
 //
 
-pub mod grpc;
-pub mod log;
-
-use crate::skywalking_proto::v3::SegmentObject;
+use super::Reporter;
+use crate::skywalking_proto::v3::{
+    trace_segment_report_service_client::TraceSegmentReportServiceClient, SegmentObject,
+};
+use futures_util::stream;
 use std::collections::LinkedList;
-use tonic::async_trait;
+use tonic::{
+    async_trait,
+    transport::{self, Channel, Endpoint},
+};
 
-pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
+pub struct LogReporter;
 
 #[async_trait]
-pub trait Reporter {
-    async fn collect(&mut self, stream: LinkedList<SegmentObject>) -> crate::Result<()>;
+impl Reporter for LogReporter {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()> {
+        for segment in segments {
+            tracing::info!(?segment, "Do trace");
+        }
+        Ok(())
+    }
 }

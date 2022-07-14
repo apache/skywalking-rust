@@ -179,3 +179,12 @@ impl Drop for Span {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    trait AssertSend: Send {}
+
+    impl AssertSend for Span {}
+}

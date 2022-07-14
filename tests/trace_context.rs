@@ -17,7 +17,6 @@
 #![allow(unused_imports)]
 
 use prost::Message;
-use skywalking::common::time::TimeFetcher;
 use skywalking::context::propagation::context::PropagationContext;
 use skywalking::context::propagation::decoder::decode_propagation;
 use skywalking::context::propagation::encoder::encode_propagation;
@@ -40,14 +39,6 @@ where
     let mut buf_b = Vec::new();
     msg_b.encode(&mut buf_b).unwrap();
     assert_eq!(buf_a, buf_b);
-}
-
-struct MockTimeFetcher {}
-
-impl TimeFetcher for MockTimeFetcher {
-    fn get(&self) -> i64 {
-        100
-    }
 }
 
 #[test]

@@ -53,10 +53,6 @@ pub fn create_trace_context_from_propagation(context: PropagationContext) -> Tra
     global_tracer().create_trace_context_from_propagation(context)
 }
 
-pub fn finalize_context(context: TracingContext) {
-    global_tracer().finalize_context(context)
-}
-
 pub fn reporting(
     shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
 ) -> JoinHandle<()> {
@@ -128,10 +124,10 @@ impl Tracer {
     }
 
     /// Finalize the trace context.
-    pub fn finalize_context(&self, context: TracingContext) {
+    pub(crate) fn finalize_context(&self, context: &mut TracingContext) {
         let segment_object = context.convert_segment_object();
         if self.inner.segment_sender.send(segment_object).is_err() {
-            tracing::warn!("segment object channel has closed");
+            tracing::error!("segment object channel has closed");
         }
     }
 

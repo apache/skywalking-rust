@@ -16,8 +16,7 @@
 
 use tokio::{sync::oneshot, task::JoinError};
 
-pub(crate) const LOCK_MSG: &str = "whould not cross threads/coroutines (locked)";
-pub(crate) const UNWRAP_RC_MSG: &str = "more than one reference";
+pub(crate) const LOCK_MSG: &str = "should not cross threads/coroutines (locked)";
 
 /// Skywalking Result.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -25,9 +24,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Skywalking Error.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("create span failed: {0}")]
-    CreateSpan(&'static str),
-
     #[error("decode propagation failed: {0}")]
     DecodePropagation(&'static str),
 

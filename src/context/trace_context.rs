@@ -16,21 +16,22 @@
 
 use super::span::Span;
 use super::system_time::{fetch_time, TimePeriod};
-use super::tracer::WeakTracer;
+use super::tracer::{Tracer, WeakTracer};
 use crate::common::random_generator::RandomGenerator;
 use crate::context::propagation::context::PropagationContext;
-use crate::error::{LOCK_MSG, UNWRAP_RC_MSG};
+use crate::error::LOCK_MSG;
 use crate::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };
 use std::borrow::Borrow;
-use std::cell::{RefCell, Cell};
+use std::cell::{Cell, RefCell};
 use std::collections::LinkedList;
 use std::fmt::Formatter;
+use std::mem::take;
 use std::ops::Deref;
-use std::sync::{Arc, Weak, Mutex};
 use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 
 struct Inner {
     trace_id: String,
@@ -111,7 +112,7 @@ impl TracingContext {
             tracer,
         }
     }
-    
+
     #[inline]
     pub fn trace_id(&self) -> &str {
         &self.inner.trace_id
@@ -134,12 +135,12 @@ impl TracingContext {
 
     fn next_span_id(&self) -> i32 {
         self.inner.next_span_id.load(Ordering::Relaxed)
-    } 
+    }
 
     #[inline]
     fn inc_next_span_id(&self) -> i32 {
         self.inner.next_span_id.fetch_add(1, Ordering::Relaxed)
-    } 
+    }
 
     fn with_spans<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
         f(&*self.inner.spans.try_lock().expect(LOCK_MSG))
@@ -153,12 +154,22 @@ impl TracingContext {
         f(&*self.inner.active_span_stack.try_lock().expect(LOCK_MSG))
     }
 
-    pub(crate) fn with_active_span_stack_mut<T>(&mut self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
+    pub(crate) fn with_active_span_stack_mut<T>(
+        &mut self,
+        f: impl FnOnce(&mut Vec<SpanObject>) -> T,
+    ) -> T {
         f(&mut *self.inner.active_span_stack.try_lock().expect(LOCK_MSG))
     }
 
-    pub(crate) fn try_with_active_span_stack<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> Option<T> {
-        self.inner.active_span_stack.try_lock().ok().map(|stack| f(&*stack))
+    pub(crate) fn try_with_active_span_stack<T>(
+        &self,
+        f: impl FnOnce(&Vec<SpanObject>) -> T,
+    ) -> Option<T> {
+        self.inner
+            .active_span_stack
+            .try_lock()
+            .ok()
+            .map(|stack| f(&*stack))
     }
 
     pub(crate) fn with_active_span<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> Option<T> {
@@ -176,9 +187,9 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered by
     /// external service.
-    pub fn create_entry_span(&mut self, operation_name: &str) -> crate::Result<Span> {
+    pub fn create_entry_span(&mut self, operation_name: &str) -> Span {
         if self.next_span_id() >= 1 {
-            return Err(crate::Error::CreateSpan("entry span have already exist."));
+            panic!("entry span have already exist.");
         }
 
         let mut span = Span::new_obj(
@@ -205,27 +216,20 @@ impl TracingContext {
         }
 
         let index = self.push_active_span(span);
-        Ok(Span::new(
-            index,
-            self.downgrade(),
-        ))
+        Span::new(index, self.downgrade())
     }
 
     /// Create a new exit span, which will be created when tracing context will generate
     /// new span for function invocation.
     /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
-    pub fn create_exit_span(
-        &mut self,
-        operation_name: &str,
-        remote_peer: &str,
-    ) -> crate::Result<Span> {
+    pub fn create_exit_span(&mut self, operation_name: &str, remote_peer: &str) -> Span {
         if self.next_span_id() == 0 {
-            return Err(crate::Error::CreateSpan("entry span must be existed."));
+            panic!("entry span must be existed.");
         }
 
         let span = Span::new_obj(
-        self.inc_next_span_id(),
-self.peek_active_span_id().unwrap_or(-1),
+            self.inc_next_span_id(),
+            self.peek_active_span_id().unwrap_or(-1),
             operation_name.to_string(),
             remote_peer.to_string(),
             SpanType::Exit,
@@ -234,21 +238,18 @@ self.peek_active_span_id().unwrap_or(-1),
         );
 
         let index = self.push_active_span(span);
-        Ok(Span::new(
-            index,
-            self.downgrade(),
-        ))
+        Span::new(index, self.downgrade())
     }
 
     // Create a new local span.
-    pub fn create_local_span(&mut self, operation_name: &str) -> crate::Result<Span> {
+    pub fn create_local_span(&mut self, operation_name: &str) -> Span {
         if self.next_span_id() == 0 {
-            return Err(crate::Error::CreateSpan("entry span must be existed."));
+            panic!("entry span must be existed.");
         }
 
         let span = Span::new_obj(
             self.inc_next_span_id(),
-self.peek_active_span_id().unwrap_or(-1),
+            self.peek_active_span_id().unwrap_or(-1),
             operation_name.to_string(),
             Default::default(),
             SpanType::Local,
@@ -257,10 +258,7 @@ self.peek_active_span_id().unwrap_or(-1),
         );
 
         let index = self.push_active_span(span);
-        Ok(Span::new(
-            index,
-            self.downgrade(),
-        ))
+        Span::new(index, self.downgrade())
     }
 
     /// Close span. We can't use closed span after finalize called.
@@ -277,17 +275,19 @@ self.peek_active_span_id().unwrap_or(-1),
 
     /// It converts tracing context into segment object.
     /// This conversion should be done before sending segments into OAP.
-    pub fn convert_segment_object(self) -> SegmentObject {
+    ///
+    /// Notice: The spans will taked, so this method shouldn't be called twice.
+    pub(crate) fn convert_segment_object(&mut self) -> SegmentObject {
         let trace_id = self.trace_id().to_owned();
         let trace_segment_id = self.trace_segment_id().to_owned();
         let service = self.service().to_owned();
         let service_instance = self.service_instance().to_owned();
-        let inner = self.unwrap_inner();
+        let spans = self.with_spans_mut(|spans| take(spans));
 
         SegmentObject {
             trace_id,
             trace_segment_id,
-            spans: inner.spans.into_inner().expect(LOCK_MSG),
+            spans,
             service,
             service_instance,
             is_size_limited: false,
@@ -351,11 +351,24 @@ self.peek_active_span_id().unwrap_or(-1),
     }
 
     fn downgrade(&self) -> WeakTracingContext {
-        WeakTracingContext { inner: Arc::downgrade(&self.inner), tracer: self.tracer.clone() }
+        WeakTracingContext {
+            inner: Arc::downgrade(&self.inner),
+            tracer: self.tracer.clone(),
+        }
     }
 
-    fn unwrap_inner(self) -> Inner {
-        Arc::try_unwrap(self.inner).ok().expect(UNWRAP_RC_MSG)
+    // fn unwrap_inner(self) -> Inner {
+    //     Arc::try_unwrap(self.inner).ok().expect(MORE_RC_MSG)
+    // }
+
+    fn upgrade_tracer(&self) -> Tracer {
+        self.tracer.upgrade().expect("Tracer has dropped")
+    }
+}
+
+impl Drop for TracingContext {
+    fn drop(&mut self) {
+        self.upgrade_tracer().finalize_context(self)
     }
 }
 
@@ -367,9 +380,10 @@ pub(crate) struct WeakTracingContext {
 
 impl WeakTracingContext {
     pub(crate) fn upgrade(&self) -> Option<TracingContext> {
-        self.inner
-            .upgrade()
-            .map(|inner| TracingContext { inner, tracer: self.tracer.clone() })
+        self.inner.upgrade().map(|inner| TracingContext {
+            inner,
+            tracer: self.tracer.clone(),
+        })
     }
 }
 
@@ -397,6 +411,4 @@ mod tests {
     trait AssertSend: Send {}
 
     impl AssertSend for TracingContext {}
-
-    impl AssertSend for Span {}
 }
