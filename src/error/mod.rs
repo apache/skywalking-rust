@@ -16,6 +16,9 @@
 
 use tokio::{sync::oneshot, task::JoinError};
 
+pub(crate) const LOCK_MSG: &str = "whould not cross threads/coroutines (locked)";
+pub(crate) const UNWRAP_RC_MSG: &str = "more than one reference";
+
 /// Skywalking Result.
 pub type Result<T> = std::result::Result<T, Error>;
 

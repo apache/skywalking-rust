@@ -214,3 +214,12 @@ impl WeakTracer {
         Weak::upgrade(&self.inner).map(|inner| Tracer { inner })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    trait AssertSend: Send {}
+
+    impl AssertSend for Tracer {}
+}

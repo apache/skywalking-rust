@@ -16,7 +16,7 @@
 
 use cfg_if::cfg_if;
 
-pub enum TimePeriod {
+pub(crate) enum TimePeriod {
     Start,
     Log,
     End,
@@ -24,7 +24,7 @@ pub enum TimePeriod {
 
 cfg_if! {
     if #[cfg(test)] {
-        pub fn fetch_time(period: TimePeriod) -> i64 {
+        pub(crate) fn fetch_time(period: TimePeriod) -> i64 {
             match period {
                 TimePeriod::Start => 1,
                 TimePeriod::Log => 10,
@@ -32,7 +32,7 @@ cfg_if! {
             }
         }
     } else {
-        pub fn fetch_time(_period: TimePeriod) -> i64 {
+        pub(crate) fn fetch_time(_period: TimePeriod) -> i64 {
             use std::time::{SystemTime, UNIX_EPOCH};
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
