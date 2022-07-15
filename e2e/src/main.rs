@@ -21,7 +21,7 @@ use hyper::{Body, Client, Method, Request, Response, Server, StatusCode};
 use skywalking::context::propagation::context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY;
 use skywalking::context::propagation::decoder::decode_propagation;
 use skywalking::context::propagation::encoder::encode_propagation;
-use skywalking::context::tracer::Tracer;
+use skywalking::context::tracer::{self, Tracer};
 use skywalking::reporter::grpc::GrpcReporter;
 use std::convert::Infallible;
 use std::error::Error;
@@ -33,26 +33,14 @@ use tokio::sync::OnceCell;
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
 
-static GLOBAL_TRACER: OnceCell<Tracer<GrpcReporter>> = OnceCell::const_new();
-
-fn set_global_tracer(tracer: Tracer<GrpcReporter>) {
-    if GLOBAL_TRACER.set(tracer).is_err() {
-        panic!("TRACER has setted")
-    }
-}
-
-fn get_global_tracer() -> &'static Tracer<GrpcReporter> {
-    GLOBAL_TRACER.get().expect("TRACER haven't setted")
-}
-
 async fn handle_ping(
     _req: Request<Body>,
     client: Client<HttpConnector>,
 ) -> Result<Response<Body>, Infallible> {
-    let mut context = get_global_tracer().create_trace_context();
-    let span = context.create_entry_span("/ping").unwrap();
+    let mut context = tracer::create_trace_context();
+    let span = context.create_entry_span("/ping");
     {
-        let span2 = context.create_exit_span("/pong", "consumer:8082").unwrap();
+        let span2 = context.create_exit_span("/pong", "consumer:8082");
         let header = encode_propagation(&context, "/pong", "consumer:8082");
         let req = Request::builder()
             .method(Method::GET)
@@ -62,10 +50,7 @@ async fn handle_ping(
             .unwrap();
 
         client.request(req).await.unwrap();
-        context.finalize_span(span2);
     }
-    context.finalize_span(span);
-    get_global_tracer().finalize_context(context);
     Ok(Response::new(Body::from("hoge")))
 }
 
@@ -112,10 +97,8 @@ async fn handle_pong(_req: Request<Body>) -> Result<Response<Body>, Infallible> 
             .unwrap(),
     )
     .unwrap();
-    let mut context = get_global_tracer().create_trace_context_from_propagation(ctx);
-    let span = context.create_entry_span("/pong").unwrap();
-    context.finalize_span(span);
-    get_global_tracer().finalize_context(context);
+    let mut context = tracer::create_trace_context_from_propagation(ctx);
+    let _span = context.create_entry_span("/pong");
     Ok(Response::new(Body::from("hoge")))
 }
 
@@ -158,13 +141,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let reporter = GrpcReporter::connect("http://collector:19876").await?;
 
     let handle = if opt.mode == "consumer" {
-        set_global_tracer(Tracer::new("consumer", "node_0", reporter));
-        let handle = get_global_tracer().reporting(pending());
+        tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter));
+        let handle = tracer::reporting(pending());
         run_consumer_service([0, 0, 0, 0]).await;
         handle
     } else if opt.mode == "producer" {
-        set_global_tracer(Tracer::new("producer", "node_0", reporter));
-        let handle = get_global_tracer().reporting(pending());
+        tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter));
+        let handle = tracer::reporting(pending());
         run_producer_service([0, 0, 0, 0]).await;
         handle
     } else {

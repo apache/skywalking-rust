@@ -46,6 +46,7 @@ struct Inner {
 }
 
 #[derive(Clone)]
+#[must_use = "You should call `create_entry_span` after `TracingContext` created."]
 pub struct TracingContext {
     inner: Arc<Inner>,
     tracer: WeakTracer,
@@ -142,6 +143,7 @@ impl TracingContext {
         self.inner.next_span_id.fetch_add(1, Ordering::Relaxed)
     }
 
+    #[cfg(feature = "mock")]
     pub fn with_spans<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
         f(&*self.inner.spans.try_lock().expect(LOCK_MSG))
     }
@@ -368,7 +370,9 @@ impl TracingContext {
 
 impl Drop for TracingContext {
     fn drop(&mut self) {
-        self.upgrade_tracer().finalize_context(self)
+        if Arc::strong_count(&self.inner) <= 1 {
+            self.upgrade_tracer().finalize_context(self)
+        }
     }
 }
 

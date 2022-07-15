@@ -18,7 +18,6 @@
 use skywalking::context::tracer::Tracer;
 use skywalking::reporter::grpc::GrpcReporter;
 use std::error::Error;
-use std::sync::Arc;
 use tokio::signal;
 
 async fn handle_request(tracer: Tracer) {

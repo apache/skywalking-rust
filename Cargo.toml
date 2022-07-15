@@ -32,6 +32,9 @@ license = "Apache-2.0"
 homepage = "https://skywalking.apache.org/"
 repository = "https://github.com/apache/skywalking-rust"
 
+[features]
+mock = []  # For internal integration testing only, do not use.
+
 [dependencies]
 async-stream = "0.3.3"
 base64 = "0.13.0"
@@ -52,6 +55,10 @@ tonic-build = "0.7.2"
 
 [dev-dependencies]
 tokio-stream = { version = "0.1.8", features = ["net"] }
+
+[[test]]
+name = "trace_context"
+required-features = ["mock"]
 
 [[example]]
 name = "simple_trace_report"

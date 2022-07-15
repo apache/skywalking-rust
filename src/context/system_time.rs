@@ -23,7 +23,7 @@ pub(crate) enum TimePeriod {
 }
 
 cfg_if! {
-    if #[cfg(test)] {
+    if #[cfg(feature = "mock")] {
         pub(crate) fn fetch_time(period: TimePeriod) -> i64 {
             match period {
                 TimePeriod::Start => 1,

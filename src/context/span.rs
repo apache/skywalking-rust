@@ -29,28 +29,32 @@ use super::{
 /// # Example
 ///
 /// ```
-/// use skywalking::context::trace_context::TracingContext;
+/// use skywalking::context::tracer::Tracer;
 ///
-/// async fn handle_request() {
-///     let mut ctx = TracingContext::default("svc", "ins");
+/// async fn handle_request(tracer: Tracer) {
+///     let mut ctx = tracer.create_trace_context();
+///
 ///     {
-///         // Generate an Entry Span when a request
-///         // is received. An Entry Span is generated only once per context.
-///         let span = ctx.create_entry_span("operation1").unwrap();
-///         
+///         // Generate an Entry Span when a request is received.
+///         // An Entry Span is generated only once per context.
+///         // You should assign a variable name to guard the span not be dropped immediately.
+///         let _span = ctx.create_entry_span("op1");
+///
 ///         // Something...
-///         
+///
 ///         {
 ///             // Generates an Exit Span when executing an RPC.
-///             let span2 = ctx.create_exit_span("operation2", "remote_peer").unwrap();
-///             
+///             let _span2 = ctx.create_exit_span("op2", "remote_peer");
+///
 ///             // Something...
 ///
-///             ctx.finalize_span(span2);
+///             // Auto close span2 when dropped.
 ///         }
 ///
-///         ctx.finalize_span(span);
+///         // Auto close span when dropped.
 ///     }
+///
+///     // Auto report ctx when dropped.
 /// }
 /// ```
 #[derive(Clone)]
