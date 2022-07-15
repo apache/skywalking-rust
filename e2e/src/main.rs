@@ -28,7 +28,6 @@ use std::error::Error;
 use std::future::pending;
 use std::net::SocketAddr;
 use structopt::StructOpt;
-use tokio::sync::OnceCell;
 
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
@@ -38,9 +37,9 @@ async fn handle_ping(
     client: Client<HttpConnector>,
 ) -> Result<Response<Body>, Infallible> {
     let mut context = tracer::create_trace_context();
-    let span = context.create_entry_span("/ping");
+    let _span = context.create_entry_span("/ping");
     {
-        let span2 = context.create_exit_span("/pong", "consumer:8082");
+        let _span2 = context.create_exit_span("/pong", "consumer:8082");
         let header = encode_propagation(&context, "/pong", "consumer:8082");
         let req = Request::builder()
             .method(Method::GET)

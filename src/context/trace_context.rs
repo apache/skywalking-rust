@@ -14,24 +14,28 @@
 // limitations under the License.
 //
 
-use super::span::Span;
-use super::system_time::{fetch_time, TimePeriod};
-use super::tracer::{Tracer, WeakTracer};
-use crate::common::random_generator::RandomGenerator;
-use crate::context::propagation::context::PropagationContext;
-use crate::error::LOCK_MSG;
-use crate::skywalking_proto::v3::{
-    KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
-    SpanType,
+use super::{
+    span::Span,
+    system_time::{fetch_time, TimePeriod},
+    tracer::{Tracer, WeakTracer},
 };
-use std::borrow::Borrow;
-use std::cell::{Cell, RefCell};
-use std::collections::LinkedList;
-use std::fmt::Formatter;
-use std::mem::take;
-use std::ops::Deref;
-use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, Mutex, Weak};
+use crate::{
+    common::random_generator::RandomGenerator, context::propagation::context::PropagationContext,
+};
+use crate::{
+    error::LOCK_MSG,
+    skywalking_proto::v3::{
+        RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType,
+    },
+};
+use std::{
+    fmt::Formatter,
+    mem::take,
+    sync::{
+        atomic::{AtomicI32, Ordering},
+        Arc, Mutex, Weak,
+    },
+};
 
 struct Inner {
     trace_id: String,
@@ -175,9 +179,11 @@ impl TracingContext {
     }
 
     pub(crate) fn with_active_span<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> Option<T> {
-        self.with_active_span_stack(|stack| stack.last().map(|span| f(span)))
+        self.with_active_span_stack(|stack| stack.last().map(f))
     }
 
+    // TODO Using for capture and continued.
+    #[allow(dead_code)]
     fn with_primary_endpoint_name<T>(&self, f: impl FnOnce(&String) -> T) -> T {
         f(&*self.inner.primary_endpoint_name.try_lock().expect(LOCK_MSG))
     }
@@ -189,6 +195,10 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered by
     /// external service.
+    ///
+    /// # Panics
+    ///
+    /// Panic if entry span have already exist.
     pub fn create_entry_span(&mut self, operation_name: &str) -> Span {
         if self.next_span_id() >= 1 {
             panic!("entry span have already exist.");
@@ -224,6 +234,10 @@ impl TracingContext {
     /// Create a new exit span, which will be created when tracing context will generate
     /// new span for function invocation.
     /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
+    ///
+    /// # Panics
+    ///
+    /// Panic if entry span not existed.
     pub fn create_exit_span(&mut self, operation_name: &str, remote_peer: &str) -> Span {
         if self.next_span_id() == 0 {
             panic!("entry span must be existed.");
@@ -243,7 +257,11 @@ impl TracingContext {
         Span::new(index, self.downgrade())
     }
 
-    // Create a new local span.
+    /// Create a new local span.
+    ///
+    /// # Panics
+    ///
+    /// Panic if entry span not existed.
     pub fn create_local_span(&mut self, operation_name: &str) -> Span {
         if self.next_span_id() == 0 {
             panic!("entry span must be existed.");
@@ -296,40 +314,6 @@ impl TracingContext {
         }
     }
 
-    // pub fn capture(&self) -> ContextSnapshot {
-    //     ContextSnapshot {
-    //         trace_id: self.inner.trace_id.clone(),
-    //         trace_segment_id: self.inner.trace_segment_id.clone(),
-    //         span_id: self.peek_active_span_id().unwrap_or(-1),
-    //         parent_endpoint: self.with_primary_endpoint_name(|endpoint| endpoint.clone()),
-    //     }
-    // }
-
-    // pub fn continued(&mut self, snapshot: ContextSnapshot) {
-    //     if snapshot.is_valid() {
-    //         let tracer = self.tracer.upgrade().unwrap();
-    //         let segment_ref = SegmentReference {
-    //             ref_type: RefType::CrossThread as i32,
-    //             trace_id: snapshot.trace_id,
-    //             parent_trace_segment_id: snapshot.trace_segment_id,
-    //             parent_span_id: snapshot.span_id,
-    //             parent_service: tracer.service_name().to_owned(),
-    //             parent_service_instance: tracer.instance_name().to_owned(),
-    //             parent_endpoint: snapshot.parent_endpoint,
-    //             network_address_used_at_peer: Default::default(),
-    //         };
-    //         let mut span = self.peek_active_span().unwrap();
-    //         span.add_segment_reference(segment_ref);
-    //         // TraceSegmentRef segmentRef = new TraceSegmentRef(snapshot);
-    //         // this.segment.ref(segmentRef);
-    //         // this.activeSpan().ref(segmentRef);
-    //         // this.segment.relatedGlobalTrace(snapshot.getTraceId());
-    //         // this.correlationContext.continued(snapshot);
-    //         // this.extensionContext.continued(snapshot);
-    //         // this.extensionContext.handle(this.activeSpan());
-    //     }
-    // }
-
     pub(crate) fn peek_active_span_id(&self) -> Option<i32> {
         self.with_active_span(|span| span.span_id)
     }
@@ -359,16 +343,17 @@ impl TracingContext {
         }
     }
 
-    // fn unwrap_inner(self) -> Inner {
-    //     Arc::try_unwrap(self.inner).ok().expect(MORE_RC_MSG)
-    // }
-
     fn upgrade_tracer(&self) -> Tracer {
         self.tracer.upgrade().expect("Tracer has dropped")
     }
 }
 
 impl Drop for TracingContext {
+    /// Convert to segment object, and send to tracer for reporting.
+    ///
+    /// # Panics
+    ///
+    /// Panic if tracer is dropped.
     fn drop(&mut self) {
         if Arc::strong_count(&self.inner) <= 1 {
             self.upgrade_tracer().finalize_context(self)
@@ -395,6 +380,8 @@ pub struct ContextSnapshot {
     trace_id: String,
     trace_segment_id: String,
     span_id: i32,
+    // TODO Using for capture and continued.
+    #[allow(dead_code)]
     parent_endpoint: String,
 }
 

@@ -15,15 +15,10 @@
 //
 
 use super::Reporter;
-use crate::skywalking_proto::v3::{
-    trace_segment_report_service_client::TraceSegmentReportServiceClient, SegmentObject,
-};
-use futures_util::stream;
+use crate::skywalking_proto::v3::SegmentObject;
+
 use std::collections::LinkedList;
-use tonic::{
-    async_trait,
-    transport::{self, Channel, Endpoint},
-};
+use tonic::async_trait;
 
 pub struct LogReporter;
 

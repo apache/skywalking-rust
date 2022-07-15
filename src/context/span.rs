@@ -68,12 +68,10 @@ impl std::fmt::Debug for Span {
         let mut d = f.debug_struct("Span");
         match self.context.upgrade() {
             Some(context) => {
-                if context
-                    .try_with_active_span_stack(|stack| {
-                        d.field("data", &stack.get(self.index));
-                    })
-                    .is_none()
-                {
+                let op = context.try_with_active_span_stack(|stack| {
+                    d.field("data", &stack.get(self.index));
+                });
+                if op.is_none() {
                     d.field("data", &format_args!("<locked>"));
                 }
             }
@@ -166,17 +164,15 @@ impl Span {
             })
         })
     }
-
-    // fn add_segment_reference(&mut self, segment_reference: SegmentReference) {
-    //     self.with_span_object_mut(|span| span.refs.push(segment_reference));
-    // }
-
-    // fn unwrap_inner(self) -> SpanObject {
-    //     Arc::try_unwrap(self.span_internal).unwrap().into_inner()
-    // }
 }
 
 impl Drop for Span {
+    /// Set the end time as current time, pop from context active span stack,
+    /// and push to context spans.
+    ///
+    /// # Panics
+    ///
+    /// Panic if context is dropped or this span isn't the active span.
     fn drop(&mut self) {
         if self.upgrade_context().finalize_span(self.index).is_err() {
             panic!("Dropped span isn't the active span");

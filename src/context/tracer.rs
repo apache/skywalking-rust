@@ -25,7 +25,7 @@ use std::{collections::LinkedList, sync::Arc};
 use tokio::sync::OnceCell;
 use tokio::{
     sync::{
-        mpsc::{self, UnboundedReceiver},
+        mpsc::{self},
         Mutex,
     },
     task::JoinHandle,
@@ -33,26 +33,31 @@ use tokio::{
 
 static GLOBAL_TRACER: OnceCell<Tracer> = OnceCell::const_new();
 
+/// Set the global tracer.
 pub fn set_global_tracer(tracer: Tracer) {
     if GLOBAL_TRACER.set(tracer).is_err() {
         panic!("global tracer has setted")
     }
 }
 
+/// Get the global tracer.
 pub fn global_tracer() -> &'static Tracer {
     GLOBAL_TRACER.get().expect("global tracer haven't setted")
 }
 
-/// Create trace conetxt.
+/// Create trace conetxt by global tracer.
 pub fn create_trace_context() -> TracingContext {
     global_tracer().create_trace_context()
 }
 
-/// Create trace conetxt from propagation.
+/// Create trace conetxt from propagation by global tracer.
 pub fn create_trace_context_from_propagation(context: PropagationContext) -> TracingContext {
     global_tracer().create_trace_context_from_propagation(context)
 }
 
+/// Start to reporting by global tracer, quit when shutdown_signal received.
+///
+/// Accept a `shutdown_signal` argument as a graceful shutdown signal.
 pub fn reporting(
     shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
 ) -> JoinHandle<()> {
