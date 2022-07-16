@@ -37,38 +37,38 @@ context after the span finished.
 use skywalking::context::tracer::Tracer;
 use skywalking::reporter::grpc::GrpcReporter;
 use std::error::Error;
-use std::sync::Arc;
 use tokio::signal;
 
-async fn handle_request(tracer: Arc<Tracer<GrpcReporter>>) {
+async fn handle_request(tracer: Tracer) {
     let mut ctx = tracer.create_trace_context();
 
     {
-        // Generate an Entry Span when a request
-        // is received. An Entry Span is generated only once per context.
-        let span = ctx.create_entry_span("op1").unwrap();
+        // Generate an Entry Span when a request is received.
+        // An Entry Span is generated only once per context.
+        // Assign a variable name to guard the span not to be dropped immediately.
+        let _span = ctx.create_entry_span("op1");
 
         // Something...
 
         {
             // Generates an Exit Span when executing an RPC.
-            let span2 = ctx.create_exit_span("op2", "remote_peer").unwrap();
+            let _span2 = ctx.create_exit_span("op2", "remote_peer");
 
             // Something...
 
-            ctx.finalize_span(span2);
+            // Auto close span2 when dropped.
         }
 
-        ctx.finalize_span(span);
+        // Auto close span when dropped.
     }
 
-    tracer.finalize_context(ctx);
+    // Auto report ctx when dropped.
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
-    let tracer = Arc::new(Tracer::new("service", "instance", reporter));
+    let tracer = Tracer::new("service", "instance", reporter);
 
     tokio::spawn(handle_request(tracer.clone()));
 

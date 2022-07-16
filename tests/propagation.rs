@@ -15,20 +15,13 @@
 //
 
 #![allow(unused_imports)]
-use skywalking::common::time::TimeFetcher;
 use skywalking::context::propagation::context::PropagationContext;
 use skywalking::context::propagation::decoder::decode_propagation;
 use skywalking::context::propagation::encoder::encode_propagation;
 use skywalking::context::trace_context::TracingContext;
+use skywalking::context::tracer::Tracer;
+use skywalking::reporter::log::LogReporter;
 use std::sync::Arc;
-
-struct MockTimeFetcher {}
-
-impl TimeFetcher for MockTimeFetcher {
-    fn get(&self) -> i64 {
-        100
-    }
-}
 
 #[test]
 fn basic() {
@@ -71,8 +64,8 @@ fn invalid_sample() {
 
 #[test]
 fn basic_encode() {
-    let time_fetcher = MockTimeFetcher {};
-    let tc = TracingContext::default_internal(Arc::new(time_fetcher), "mesh", "instance");
+    let tracer = Tracer::new("mesh", "instance", LogReporter);
+    let tc = tracer.create_trace_context();
     let res = encode_propagation(&tc, "/api/v1/health", "example.com:8080");
     let res2 = decode_propagation(&res).unwrap();
     assert!(res2.do_sample);

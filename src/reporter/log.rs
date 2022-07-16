@@ -14,7 +14,20 @@
 // limitations under the License.
 //
 
-pub trait TimeFetcher {
-    // Get current UNIX timestamp with sec resolution.
-    fn get(&self) -> i64;
+use super::Reporter;
+use crate::skywalking_proto::v3::SegmentObject;
+
+use std::collections::LinkedList;
+use tonic::async_trait;
+
+pub struct LogReporter;
+
+#[async_trait]
+impl Reporter for LogReporter {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()> {
+        for segment in segments {
+            tracing::info!(?segment, "Do trace");
+        }
+        Ok(())
+    }
 }

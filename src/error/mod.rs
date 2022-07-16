@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use tokio::{sync::oneshot, task::JoinError};
+pub(crate) const LOCK_MSG: &str = "should not cross threads/coroutines (locked)";
 
 /// Skywalking Result.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -22,9 +22,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Skywalking Error.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("create span failed: {0}")]
-    CreateSpan(&'static str),
-
     #[error("decode propagation failed: {0}")]
     DecodePropagation(&'static str),
 
@@ -36,10 +33,4 @@ pub enum Error {
 
     #[error("tonic status: {0}")]
     TonicStatus(#[from] tonic::Status),
-
-    #[error("tokio task join failed: {0}")]
-    TokioJoin(#[from] JoinError),
-
-    #[error("tokio oneshot receive failed: {0}")]
-    TokioOneshotRecv(#[from] oneshot::error::RecvError),
 }

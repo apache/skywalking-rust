@@ -25,7 +25,7 @@ pub mod skywalking_proto {
 
 pub mod common;
 pub mod context;
-mod error;
+pub(crate) mod error;
 pub mod reporter;
 
 pub use error::{Error, Result};

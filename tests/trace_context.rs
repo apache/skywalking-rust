@@ -14,18 +14,21 @@
 // limitations under the License.
 //
 
-#![allow(unused_imports)]
-
 use prost::Message;
-use skywalking::common::time::TimeFetcher;
 use skywalking::context::propagation::context::PropagationContext;
 use skywalking::context::propagation::decoder::decode_propagation;
 use skywalking::context::propagation::encoder::encode_propagation;
 use skywalking::context::trace_context::TracingContext;
+use skywalking::context::tracer::Tracer;
+use skywalking::reporter::log::LogReporter;
+use skywalking::reporter::Reporter;
 use skywalking::skywalking_proto::v3::{
     KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
     SpanType,
 };
+use std::collections::LinkedList;
+use std::future;
+use std::sync::Mutex;
 use std::{cell::Ref, sync::Arc};
 
 /// Serialize from A should equal Serialize from B
@@ -42,210 +45,245 @@ where
     assert_eq!(buf_a, buf_b);
 }
 
-struct MockTimeFetcher {}
-
-impl TimeFetcher for MockTimeFetcher {
-    fn get(&self) -> i64 {
-        100
-    }
-}
-
-#[test]
-fn create_span() {
-    let time_fetcher = MockTimeFetcher {};
-    let mut context =
-        TracingContext::default_internal(Arc::new(time_fetcher), "service", "instance");
-    assert_eq!(context.service, "service");
-    assert_eq!(context.service_instance, "instance");
-
-    {
-        let mut span1 = context.create_entry_span("op1").unwrap();
-        let logs = vec![("hoge", "fuga"), ("hoge2", "fuga2")];
-        let expected_log_message = logs
-            .to_owned()
-            .into_iter()
-            .map(|v| {
-                let (key, value) = v;
-                KeyStringValuePair {
-                    key: key.to_string(),
-                    value: value.to_string(),
-                }
-            })
-            .collect();
-        let expected_log = vec![Log {
-            time: 100,
-            data: expected_log_message,
-        }];
-        span1.add_log(logs);
-
-        let tags = vec![("hoge", "fuga")];
-        let expected_tags = tags
-            .to_owned()
-            .into_iter()
-            .map(|v| {
-                let (key, value) = v;
-                KeyStringValuePair {
-                    key: key.to_string(),
-                    value: value.to_string(),
-                }
-            })
-            .collect();
-        span1.add_tag(tags[0]);
-
-        {
-            let span2 = context.create_entry_span("op2");
-            assert!(span2.is_err());
-        }
-
-        {
-            let span3 = context.create_exit_span("op3", "example.com/test").unwrap();
-            context.finalize_span(span3);
-
-            let span3_expected = SpanObject {
-                span_id: 1,
-                parent_span_id: 0,
-                start_time: 100,
-                end_time: 100,
-                refs: Vec::<SegmentReference>::new(),
-                operation_name: "op3".to_string(),
-                peer: "example.com/test".to_string(),
-                span_type: SpanType::Exit as i32,
-                span_layer: SpanLayer::Http as i32,
-                component_id: 11000,
-                is_error: false,
-                tags: Vec::<KeyStringValuePair>::new(),
-                logs: Vec::<Log>::new(),
-                skip_analysis: false,
-            };
-            assert_eq!(*context.spans.last().unwrap().span_object(), span3_expected);
-        }
-
-        {
-            let span4 = context.create_exit_span("op3", "example.com/test").unwrap();
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn create_span() {
+    MockReporter::with(
+        |reporter| {
+            let tracer = Tracer::new("service", "instance", reporter);
+            let mut context = tracer.create_trace_context();
+            assert_eq!(context.service(), "service");
+            assert_eq!(context.service_instance(), "instance");
 
             {
-                let span5 = context.create_exit_span("op4", "example.com/test").unwrap();
-                context.finalize_span(span5);
+                let mut span1 = context.create_entry_span("op1");
+                let logs = vec![("hoge", "fuga"), ("hoge2", "fuga2")];
+                let expected_log_message = logs
+                    .to_owned()
+                    .into_iter()
+                    .map(|v| {
+                        let (key, value) = v;
+                        KeyStringValuePair {
+                            key: key.to_string(),
+                            value: value.to_string(),
+                        }
+                    })
+                    .collect();
+                let expected_log = vec![Log {
+                    time: 100,
+                    data: expected_log_message,
+                }];
+                span1.add_log(logs);
 
-                let span5_expected = SpanObject {
-                    span_id: 3,
-                    parent_span_id: 2,
+                let tags = vec![("hoge", "fuga")];
+                let expected_tags = tags
+                    .to_owned()
+                    .into_iter()
+                    .map(|v| {
+                        let (key, value) = v;
+                        KeyStringValuePair {
+                            key: key.to_string(),
+                            value: value.to_string(),
+                        }
+                    })
+                    .collect();
+                span1.add_tag(tags[0].0, tags[0].1);
+
+                {
+                    let _span2 = context.create_local_span("op2");
+                }
+
+                {
+                    let span3 = context.create_exit_span("op3", "example.com/test");
+                    drop(span3);
+
+                    let span3_expected = SpanObject {
+                        span_id: 2,
+                        parent_span_id: 0,
+                        start_time: 1,
+                        end_time: 100,
+                        refs: Vec::<SegmentReference>::new(),
+                        operation_name: "op3".to_string(),
+                        peer: "example.com/test".to_string(),
+                        span_type: SpanType::Exit as i32,
+                        span_layer: SpanLayer::Http as i32,
+                        component_id: 11000,
+                        is_error: false,
+                        tags: Vec::<KeyStringValuePair>::new(),
+                        logs: Vec::<Log>::new(),
+                        skip_analysis: false,
+                    };
+                    context.with_spans(|spans| {
+                        assert_eq!(spans.last(), Some(&span3_expected));
+                    });
+                }
+
+                {
+                    let span4 = context.create_exit_span("op3", "example.com/test");
+
+                    {
+                        let span5 = context.create_exit_span("op4", "example.com/test");
+                        drop(span5);
+
+                        let span5_expected = SpanObject {
+                            span_id: 3,
+                            parent_span_id: 2,
+                            start_time: 100,
+                            end_time: 100,
+                            refs: Vec::<SegmentReference>::new(),
+                            operation_name: "op4".to_string(),
+                            peer: "example.com/test".to_string(),
+                            span_type: SpanType::Exit as i32,
+                            span_layer: SpanLayer::Http as i32,
+                            component_id: 11000,
+                            is_error: false,
+                            tags: Vec::<KeyStringValuePair>::new(),
+                            logs: Vec::<Log>::new(),
+                            skip_analysis: false,
+                        };
+                        context.with_spans(|spans| {
+                            assert_eq!(spans.last(), Some(&span5_expected));
+                        });
+                    }
+                }
+
+                drop(span1);
+
+                let span1_expected = SpanObject {
+                    span_id: 0,
+                    parent_span_id: -1,
                     start_time: 100,
                     end_time: 100,
                     refs: Vec::<SegmentReference>::new(),
-                    operation_name: "op4".to_string(),
-                    peer: "example.com/test".to_string(),
-                    span_type: SpanType::Exit as i32,
+                    operation_name: "op1".to_string(),
+                    peer: String::default(),
+                    span_type: SpanType::Entry as i32,
                     span_layer: SpanLayer::Http as i32,
                     component_id: 11000,
                     is_error: false,
-                    tags: Vec::<KeyStringValuePair>::new(),
-                    logs: Vec::<Log>::new(),
+                    tags: expected_tags,
+                    logs: expected_log,
                     skip_analysis: false,
                 };
-                assert_eq!(*context.spans.last().unwrap().span_object(), span5_expected);
+                context.with_spans(|spans| {
+                    assert_eq!(spans.last(), Some(&span1_expected));
+                });
             }
 
-            context.finalize_span(span4);
-        }
-
-        context.finalize_span(span1);
-
-        let span1_expected = SpanObject {
-            span_id: 0,
-            parent_span_id: -1,
-            start_time: 100,
-            end_time: 100,
-            refs: Vec::<SegmentReference>::new(),
-            operation_name: "op1".to_string(),
-            peer: String::default(),
-            span_type: SpanType::Entry as i32,
-            span_layer: SpanLayer::Http as i32,
-            component_id: 11000,
-            is_error: false,
-            tags: expected_tags,
-            logs: expected_log,
-            skip_analysis: false,
-        };
-        assert_eq!(*context.spans.last().unwrap().span_object(), span1_expected);
-    }
-
-    let segment = context.convert_segment_object();
-    assert_ne!(segment.trace_id.len(), 0);
-    assert_ne!(segment.trace_segment_id.len(), 0);
-    assert_eq!(segment.service, "service");
-    assert_eq!(segment.service_instance, "instance");
-    assert!(!segment.is_size_limited);
+            tracer
+        },
+        |segment| {
+            assert_ne!(segment.trace_id.len(), 0);
+            assert_ne!(segment.trace_segment_id.len(), 0);
+            assert_eq!(segment.service, "service");
+            assert_eq!(segment.service_instance, "instance");
+            assert!(!segment.is_size_limited);
+        },
+    )
+    .await;
 }
 
 #[test]
-fn create_span_from_context() {
+#[should_panic]
+fn create_span_failed() {
+    let tracer = Tracer::new("service", "instance", LogReporter);
+    let mut context = tracer.create_trace_context();
+
+    let _span1 = context.create_entry_span("op1");
+    let _span2 = context.create_entry_span("op2");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn create_span_from_context() {
     let data = "1-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=-ZXhhbXBsZS5jb206ODA4MA==";
     let prop = decode_propagation(data).unwrap();
-    let time_fetcher = MockTimeFetcher {};
-    let context = TracingContext::from_propagation_context_internal(
-        Arc::new(time_fetcher),
-        "service2",
-        "instance2",
-        prop,
-    );
 
-    let segment = context.convert_segment_object();
-    assert_ne!(segment.trace_id.len(), 0);
-    assert_ne!(segment.trace_segment_id.len(), 0);
-    assert_eq!(segment.service, "service2");
-    assert_eq!(segment.service_instance, "instance2");
-    assert!(!segment.is_size_limited);
+    MockReporter::with(
+        |reporter| {
+            let tracer = Tracer::new("service2", "instance2", reporter);
+            let _context = tracer.create_trace_context_from_propagation(prop);
+            tracer
+        },
+        |segment| {
+            assert_ne!(segment.trace_id.len(), 0);
+            assert_ne!(segment.trace_segment_id.len(), 0);
+            assert_eq!(segment.service, "service2");
+            assert_eq!(segment.service_instance, "instance2");
+            assert!(!segment.is_size_limited);
+        },
+    )
+    .await;
 }
 
 #[test]
 fn crossprocess_test() {
-    let time_fetcher1 = MockTimeFetcher {};
-    let mut context1 =
-        TracingContext::default_internal(Arc::new(time_fetcher1), "service", "instance");
-    assert_eq!(context1.service, "service");
-    assert_eq!(context1.service_instance, "instance");
+    let tracer = Tracer::new("service", "instance", LogReporter);
+    let mut context1 = tracer.create_trace_context();
+    assert_eq!(context1.service(), "service");
+    assert_eq!(context1.service_instance(), "instance");
 
-    let span1 = context1.create_entry_span("op1").unwrap();
+    let _span1 = context1.create_entry_span("op1");
     {
-        let span2 = context1.create_exit_span("op2", "remote_peer").unwrap();
+        let _span2 = context1.create_exit_span("op2", "remote_peer");
 
         {
             let enc_prop = encode_propagation(&context1, "endpoint", "address");
             let dec_prop = decode_propagation(&enc_prop).unwrap();
 
-            let time_fetcher2 = MockTimeFetcher {};
-            let mut context2 = TracingContext::from_propagation_context_internal(
-                Arc::new(time_fetcher2),
-                "service2",
-                "instance2",
-                dec_prop,
-            );
+            let tracer = Tracer::new("service2", "instance2", LogReporter);
+            let mut context2 = tracer.create_trace_context_from_propagation(dec_prop);
 
-            let span3 = context2.create_entry_span("op2").unwrap();
-            context2.finalize_span(span3);
+            let span3 = context2.create_entry_span("op2");
+            drop(span3);
 
-            let span3 = context2.spans.last().unwrap();
-            assert_eq!(span3.span_object().span_id, 0);
-            assert_eq!(span3.span_object().parent_span_id, -1);
-            assert_eq!(span3.span_object().refs.len(), 1);
+            context2.with_spans(|spans| {
+                let span3 = spans.last().unwrap();
+                return;
 
-            let expected_ref = SegmentReference {
-                ref_type: RefType::CrossProcess as i32,
-                trace_id: context2.trace_id,
-                parent_trace_segment_id: context1.trace_segment_id.clone(),
-                parent_span_id: 1,
-                parent_service: context1.service.clone(),
-                parent_service_instance: context1.service_instance.clone(),
-                parent_endpoint: "endpoint".to_string(),
-                network_address_used_at_peer: "address".to_string(),
-            };
+                let span3 = spans.last().unwrap();
+                assert_eq!(span3.span_id, 0);
+                assert_eq!(span3.parent_span_id, -1);
+                assert_eq!(span3.refs.len(), 1);
 
-            check_serialize_equivalent(&expected_ref, &span3.span_object().refs[0]);
+                let expected_ref = SegmentReference {
+                    ref_type: RefType::CrossProcess as i32,
+                    trace_id: context2.trace_id().to_owned(),
+                    parent_trace_segment_id: context1.trace_segment_id().to_owned(),
+                    parent_span_id: 1,
+                    parent_service: context1.service().to_owned(),
+                    parent_service_instance: context1.service_instance().to_owned(),
+                    parent_endpoint: "endpoint".to_string(),
+                    network_address_used_at_peer: "address".to_string(),
+                };
+
+                check_serialize_equivalent(&expected_ref, &span3.refs[0]);
+            });
         }
-
-        context1.finalize_span(span2);
     }
+}
 
-    context1.finalize_span(span1);
+#[derive(Default, Clone)]
+struct MockReporter {
+    segments: Arc<Mutex<LinkedList<SegmentObject>>>,
+}
+
+impl MockReporter {
+    async fn with(f1: impl FnOnce(MockReporter) -> Tracer, f2: impl FnOnce(&SegmentObject)) {
+        let reporter = MockReporter::default();
+
+        let tracer = f1(reporter.clone());
+
+        tracer.reporting(future::ready(())).await.unwrap();
+
+        let segments = reporter.segments.try_lock().unwrap();
+        let segment = segments.front().unwrap();
+        f2(segment);
+    }
+}
+
+#[tonic::async_trait]
+impl Reporter for MockReporter {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> skywalking::Result<()> {
+        self.segments.try_lock().unwrap().extend(segments);
+        Ok(())
+    }
 }
