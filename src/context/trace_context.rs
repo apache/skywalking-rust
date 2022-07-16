@@ -195,15 +195,7 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered by
     /// external service.
-    ///
-    /// # Panics
-    ///
-    /// Panic if entry span have already exist.
     pub fn create_entry_span(&mut self, operation_name: &str) -> Span {
-        if self.next_span_id() >= 1 {
-            panic!("entry span have already exist.");
-        }
-
         let mut span = Span::new_obj(
             self.inc_next_span_id(),
             self.peek_active_span_id().unwrap_or(-1),

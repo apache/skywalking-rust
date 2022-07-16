@@ -20,15 +20,14 @@ use base64::encode;
 /// Encode TracingContext to carry current trace info to the destination of RPC call.
 /// In general, the output of this function will be packed in `sw8` header in HTTP call.
 pub fn encode_propagation(context: &TracingContext, endpoint: &str, address: &str) -> String {
-    let mut res = String::new();
-
-    res += "1-";
-    res += format!("{}-", encode(context.trace_id())).as_str();
-    res += format!("{}-", encode(context.trace_segment_id())).as_str();
-    res += format!("{}-", context.peek_active_span_id().unwrap_or(0)).as_str();
-    res += format!("{}-", encode(context.service())).as_str();
-    res += format!("{}-", encode(context.service_instance())).as_str();
-    res += format!("{}-", encode(endpoint)).as_str();
-    res += &encode(address);
-    res
+    format!(
+        "1-{}-{}-{}-{}-{}-{}-{}",
+        encode(context.trace_id()),
+        encode(context.trace_segment_id()),
+        context.peek_active_span_id().unwrap_or(0),
+        encode(context.service()),
+        encode(context.service_instance()),
+        encode(endpoint),
+        encode(address)
+    )
 }
