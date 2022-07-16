@@ -45,7 +45,7 @@ async fn handle_request(tracer: Tracer) {
     {
         // Generate an Entry Span when a request is received.
         // An Entry Span is generated only once per context.
-        // You should assign a variable name to guard the span not be dropped immediately.
+        // Assign a variable name to guard the span not to be dropped immediately.
         let _span = ctx.create_entry_span("op1");
 
         // Something...
