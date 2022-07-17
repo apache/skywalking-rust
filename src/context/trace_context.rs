@@ -33,12 +33,12 @@ use std::{
     mem::take,
     sync::{
         atomic::{AtomicI32, Ordering},
-        Arc, Mutex, Weak,
+        Arc, Mutex, RwLock, Weak,
     },
 };
 
 struct Inner {
-    trace_id: String,
+    trace_id: RwLock<String>,
     trace_segment_id: String,
     service: String,
     service_instance: String,
@@ -49,8 +49,7 @@ struct Inner {
     primary_endpoint_name: Mutex<String>,
 }
 
-#[derive(Clone)]
-#[must_use = "You should call `create_entry_span` after `TracingContext` created."]
+#[must_use = "call `create_entry_span` after `TracingContext` created."]
 pub struct TracingContext {
     inner: Arc<Inner>,
     tracer: WeakTracer,
@@ -79,7 +78,7 @@ impl TracingContext {
     ) -> Self {
         TracingContext {
             inner: Arc::new(Inner {
-                trace_id: RandomGenerator::generate(),
+                trace_id: RwLock::new(RandomGenerator::generate()),
                 trace_segment_id: RandomGenerator::generate(),
                 service: service_name.to_string(),
                 service_instance: instance_name.to_string(),
@@ -104,7 +103,7 @@ impl TracingContext {
     ) -> Self {
         TracingContext {
             inner: Arc::new(Inner {
-                trace_id: context.parent_trace_id.clone(),
+                trace_id: RwLock::new(context.parent_trace_id.clone()),
                 trace_segment_id: RandomGenerator::generate(),
                 service: service_name.to_string(),
                 service_instance: instance_name.to_string(),
@@ -119,8 +118,16 @@ impl TracingContext {
     }
 
     #[inline]
-    pub fn trace_id(&self) -> &str {
-        &self.inner.trace_id
+    pub fn trace_id(&self) -> String {
+        self.with_trace_id(ToString::to_string)
+    }
+
+    fn with_trace_id<T>(&self, f: impl FnOnce(&String) -> T) -> T {
+        f(&*self.inner.trace_id.try_read().expect(LOCK_MSG))
+    }
+
+    fn with_trace_id_mut<T>(&mut self, f: impl FnOnce(&mut String) -> T) -> T {
+        f(&mut *self.inner.trace_id.try_write().expect(LOCK_MSG))
     }
 
     #[inline]
@@ -182,8 +189,13 @@ impl TracingContext {
         self.with_active_span_stack(|stack| stack.last().map(f))
     }
 
-    // TODO Using for capture and continued.
-    #[allow(dead_code)]
+    pub(crate) fn with_active_span_mut<T>(
+        &mut self,
+        f: impl FnOnce(&mut SpanObject) -> T,
+    ) -> Option<T> {
+        self.with_active_span_stack_mut(|stack| stack.last_mut().map(f))
+    }
+
     fn with_primary_endpoint_name<T>(&self, f: impl FnOnce(&String) -> T) -> T {
         f(&*self.inner.primary_endpoint_name.try_lock().expect(LOCK_MSG))
     }
@@ -209,7 +221,7 @@ impl TracingContext {
         if let Some(segment_link) = &self.inner.segment_link {
             span.refs.push(SegmentReference {
                 ref_type: RefType::CrossProcess as i32,
-                trace_id: self.inner.trace_id.clone(),
+                trace_id: self.trace_id(),
                 parent_trace_segment_id: segment_link.parent_trace_segment_id.clone(),
                 parent_span_id: segment_link.parent_span_id,
                 parent_service: segment_link.parent_service.clone(),
@@ -273,6 +285,40 @@ impl TracingContext {
         Span::new(index, self.downgrade())
     }
 
+    /// Capture a snapshot for cross-thread propagation.
+    pub fn capture(&self) -> ContextSnapshot {
+        ContextSnapshot {
+            trace_id: self.trace_id(),
+            trace_segment_id: self.trace_segment_id().to_owned(),
+            span_id: self.peek_active_span_id().unwrap_or(-1),
+            parent_endpoint: self.with_primary_endpoint_name(Clone::clone),
+        }
+    }
+
+    /// Build the reference between this segment and a cross-thread segment.
+    pub fn continued(&mut self, snapshot: ContextSnapshot) {
+        if snapshot.is_valid() {
+            self.with_trace_id_mut(|trace_id| *trace_id = snapshot.trace_id.clone());
+
+            let tracer = self.upgrade_tracer();
+
+            let segment_ref = SegmentReference {
+                ref_type: RefType::CrossThread as i32,
+                trace_id: snapshot.trace_id,
+                parent_trace_segment_id: snapshot.trace_segment_id,
+                parent_span_id: snapshot.span_id,
+                parent_service: tracer.service_name().to_owned(),
+                parent_service_instance: tracer.instance_name().to_owned(),
+                parent_endpoint: snapshot.parent_endpoint,
+                network_address_used_at_peer: Default::default(),
+            };
+
+            self.with_active_span_mut(|span| {
+                span.refs.push(segment_ref);
+            });
+        }
+    }
+
     /// Close span. We can't use closed span after finalize called.
     pub(crate) fn finalize_span(&mut self, index: usize) -> Result<(), ()> {
         let span = self.pop_active_span(index);
@@ -290,7 +336,7 @@ impl TracingContext {
     ///
     /// Notice: The spans will taked, so this method shouldn't be called twice.
     pub(crate) fn convert_segment_object(&mut self) -> SegmentObject {
-        let trace_id = self.trace_id().to_owned();
+        let trace_id = self.trace_id();
         let trace_segment_id = self.trace_segment_id().to_owned();
         let service = self.service().to_owned();
         let service_instance = self.service_instance().to_owned();
@@ -368,12 +414,11 @@ impl WeakTracingContext {
     }
 }
 
+#[derive(Debug)]
 pub struct ContextSnapshot {
     trace_id: String,
     trace_segment_id: String,
     span_id: i32,
-    // TODO Using for capture and continued.
-    #[allow(dead_code)]
     parent_endpoint: String,
 }
 

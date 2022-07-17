@@ -16,7 +16,6 @@
 
 use super::Reporter;
 use crate::skywalking_proto::v3::SegmentObject;
-
 use std::collections::LinkedList;
 use tonic::async_trait;
 

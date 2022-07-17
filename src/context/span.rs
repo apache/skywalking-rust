@@ -37,7 +37,7 @@ use super::{
 ///     {
 ///         // Generate an Entry Span when a request is received.
 ///         // An Entry Span is generated only once per context.
-///         // You should assign a variable name to guard the span not be dropped immediately.
+///         // Assign a variable name to guard the span not to be dropped immediately.
 ///         let _span = ctx.create_entry_span("op1");
 ///
 ///         // Something...
@@ -57,7 +57,7 @@ use super::{
 ///     // Auto report ctx when dropped.
 /// }
 /// ```
-#[derive(Clone)]
+#[must_use = "assign a variable name to guard the span not be dropped immediately."]
 pub struct Span {
     index: usize,
     context: WeakTracingContext,
@@ -118,6 +118,8 @@ impl Span {
         self.context.upgrade().expect("Context has dropped")
     }
 
+    // Notice: Perhaps in the future, `RwLock` can be used instead of `Mutex`, so `with_*` can be nested.
+    // (Although I can't find the meaning of such use at present.)
     pub fn with_span_object<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> T {
         self.upgrade_context()
             .with_active_span_stack(|stack| f(&stack[self.index]))
