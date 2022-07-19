@@ -8,28 +8,36 @@ Apache SkyWalking Rust Agent
 [![Crates](https://img.shields.io/badge/skywalking-crates.io-blue)](https://crates.io/crates/skywalking)
 ![CI](https://github.com/apache/skywalking-rust/workflows/CI/badge.svg?branch=master)
 
-
-[**SkyWalking**](https://github.com/apache/skywalking) Rust Agent provides observability capability for Rust App and Library, 
-including tracing, metrics, topology map for distributed system and alert.
-It uses SkyWalking native formats and core concepts to keep best compatibility and performance.
+[**SkyWalking**](https://github.com/apache/skywalking) Rust Agent provides observability capability for Rust App and
+Library, including tracing, metrics, topology map for distributed system and alert. It uses SkyWalking native formats
+and core concepts to keep best compatibility and performance.
 
 # Concepts
-All concepts are from the official SkyWalking definitions.
-## Span
-Span is an important and common concept in distributed tracing system. Learn Span from Google Dapper Paper.
-For better performance, we extend the span into 3 kinds.
-   
-1. EntrySpan EntrySpan represents a service provider, also the endpoint of server side. As an APM system, we are targeting the application servers. So almost all the services and MQ-consumer are EntrySpan(s).
-2. LocalSpan LocalSpan represents a normal Java method, which does not relate to remote service, neither a MQ producer/consumer nor a service(e.g. HTTP service) provider/consumer.
-3. ExitSpan ExitSpan represents a client of service or MQ-producer, as named as LeafSpan at early age of SkyWalking. e.g. accessing DB by JDBC, reading Redis/Memcached are cataloged an ExitSpan.
 
-Tag and Log are similar attributes of the span. 
+All concepts are from the official SkyWalking definitions.
+
+## Span
+
+Span is an important and common concept in distributed tracing system. Learn Span from Google Dapper Paper. For better
+performance, we extend the span into 3 kinds.
+
+1. EntrySpan EntrySpan represents a service provider, also the endpoint of server side. As an APM system, we are
+   targeting the application servers. So almost all the services and MQ-consumer are EntrySpan(s).
+2. LocalSpan LocalSpan represents a normal Java method, which does not relate to remote service, neither a MQ
+   producer/consumer nor a service(e.g. HTTP service) provider/consumer.
+3. ExitSpan ExitSpan represents a client of service or MQ-producer, as named as LeafSpan at early age of SkyWalking.
+   e.g. accessing DB by JDBC, reading Redis/Memcached are cataloged an ExitSpan.
+
+Tag and Log are similar attributes of the span.
+
 - Tag is a key:value pair to indicate the attribute with a string value.
-- Log is heavier than tag, with one timestamp and multiple key:value pairs. Log represents an event, typically an error happens.
+- Log is heavier than tag, with one timestamp and multiple key:value pairs. Log represents an event, typically an error
+  happens.
 
 ## TracingContext
-TracingContext is the context of the tracing process. Span should only be created through context, and be archived into the
-context after the span finished.
+
+TracingContext is the context of the tracing process. Span should only be created through context, and be archived into
+the context after the span finished.
 
 # Example
 
@@ -84,14 +92,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 ```
 
 # How to compile?
+
 If you have `skywalking-(VERSION).crate`, you can unpack it with the way as follows:
 
 ```shell
 tar -xvzf skywalking-(VERSION).crate
 ```
 
-Using `cargo build` generates a library. If you'd like to verify the behavior, we recommend to use `cargo run --example simple_trace_report`
+Using `cargo build` generates a library. If you'd like to verify the behavior, we recommend to
+use `cargo run --example simple_trace_report`
 which outputs executable, then run it.
 
+# Release
+The SkyWalking committer(PMC included) could follow [this doc](Release-guide.md) to release an official version.
+
 # License
+
 Apache 2.0
