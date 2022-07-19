@@ -16,7 +16,7 @@
 # under the License.
 #
 segmentItems:
-- segmentSize: 2
+- segmentSize: gt 2
   segments:
   - segmentId: not null
     spans:
