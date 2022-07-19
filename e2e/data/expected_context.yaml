@@ -16,8 +16,30 @@
 # under the License.
 #
 segmentItems:
-- segmentSize: 1
+- segmentSize: gt 1
   segments:
+  - segmentId: not null
+    spans:
+    - componentId: 11000
+      endTime: gt 0
+      isError: false
+      operationName: async-callback
+      parentSpanId: -1
+      peer: ''
+      refs:
+      - networkAddress: ''
+        parentEndpoint: async-job
+        parentService: producer
+        parentServiceInstance: node_0
+        parentSpanId: 2
+        parentTraceSegmentId: not null
+        refType: CrossThread
+        traceId: not null
+      skipAnalysis: false
+      spanId: 0
+      spanLayer: Http
+      spanType: Entry
+      startTime: gt 0
   - segmentId: not null
     spans:
     - componentId: 11000
@@ -30,6 +52,17 @@ segmentItems:
       spanId: 1
       spanLayer: Http
       spanType: Exit
+      startTime: gt 0
+    - componentId: 11000
+      endTime: gt 0
+      isError: false
+      operationName: async-job
+      parentSpanId: 0
+      peer: ''
+      skipAnalysis: false
+      spanId: 2
+      spanLayer: Unknown
+      spanType: Local
       startTime: gt 0
     - componentId: 11000
       endTime: gt 0

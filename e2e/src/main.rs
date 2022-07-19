@@ -50,6 +50,18 @@ async fn handle_ping(
 
         client.request(req).await.unwrap();
     }
+    {
+        let _span3 = context.create_local_span("async-job");
+        let snapshot = context.capture();
+
+        tokio::spawn(async move {
+            let mut context2 = tracer::create_trace_context();
+            let _span3 = context2.create_entry_span("async-callback");
+            context2.continued(snapshot);
+        })
+        .await
+        .unwrap();
+    }
     Ok(Response::new(Body::from("hoge")))
 }
 

@@ -27,9 +27,10 @@ use skywalking::skywalking_proto::v3::{
     SpanType,
 };
 use std::collections::LinkedList;
-use std::future;
 use std::sync::Mutex;
 use std::{cell::Ref, sync::Arc};
+use std::{future, thread};
+use tokio::runtime::Handle;
 
 /// Serialize from A should equal Serialize from B
 #[allow(dead_code)]
@@ -237,9 +238,6 @@ fn crossprocess_test() {
 
             context2.with_spans(|spans| {
                 let span3 = spans.last().unwrap();
-                return;
-
-                let span3 = spans.last().unwrap();
                 assert_eq!(span3.span_id, 0);
                 assert_eq!(span3.parent_span_id, -1);
                 assert_eq!(span3.refs.len(), 1);
@@ -261,6 +259,53 @@ fn crossprocess_test() {
     }
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn cross_threads_test() {
+    MockReporter::with_many(
+        |reporter| {
+            let tracer = Tracer::new("service", "instance", reporter);
+            let mut ctx1 = tracer.create_trace_context();
+            let _span1 = ctx1.create_entry_span("op1");
+            let _span2 = ctx1.create_local_span("op2");
+            let snapshot = ctx1.capture();
+
+            let tracer_ = tracer.clone();
+            thread::spawn(move || {
+                let mut ctx2 = tracer_.create_trace_context();
+                let _span3 = ctx2.create_entry_span("op3");
+                ctx2.continued(snapshot);
+            })
+            .join()
+            .unwrap();
+
+            tracer
+        },
+        |segments| {
+            let iter = segments.iter();
+            let first = iter.nth(0).unwrap();
+            let second = iter.nth(1).unwrap();
+
+            assert_eq!(first.trace_id, second.trace_id);
+            assert_eq!(first.spans.refs.len(), 1);
+            assert_eq!(
+                first.spans.refs[0],
+                SegmentReference {
+                    ref_type: RefType::CrossThread as i32,
+                    trace_id: second.trace_id.clone(),
+                    parent_trace_segment_id: second.trace_segment_id.clone(),
+                    parent_span_id: 1,
+                    parent_service: "service".to_owned(),
+                    parent_service_instance: "instance".to_owned(),
+                    parent_endpoint: "op2".to_owned(),
+                    ..Default::default()
+                }
+            );
+            assert_eq!(second.spans.len(), 2);
+        },
+    )
+    .await;
+}
+
 #[derive(Default, Clone)]
 struct MockReporter {
     segments: Arc<Mutex<LinkedList<SegmentObject>>>,
@@ -268,6 +313,13 @@ struct MockReporter {
 
 impl MockReporter {
     async fn with(f1: impl FnOnce(MockReporter) -> Tracer, f2: impl FnOnce(&SegmentObject)) {
+        Self::with_many(f1, |segments| f2(&segments.front().unwrap())).await;
+    }
+
+    async fn with_many(
+        f1: impl FnOnce(MockReporter) -> Tracer,
+        f2: impl FnOnce(&LinkedList<SegmentObject>),
+    ) {
         let reporter = MockReporter::default();
 
         let tracer = f1(reporter.clone());
@@ -275,8 +327,7 @@ impl MockReporter {
         tracer.reporting(future::ready(())).await.unwrap();
 
         let segments = reporter.segments.try_lock().unwrap();
-        let segment = segments.front().unwrap();
-        f2(segment);
+        f2(&*segments);
     }
 }
 
