@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use crate::skywalking_proto::v3::{KeyStringValuePair, Log, SpanLayer, SpanObject, SpanType};
+use crate::skywalking_proto::v3::{SpanLayer, SpanObject, SpanType};
 use std::fmt::Formatter;
 
 use super::{
@@ -141,30 +141,12 @@ impl Span {
         V: ToString,
         I: IntoIterator<Item = (K, V)>,
     {
-        let log = Log {
-            time: fetch_time(TimePeriod::Log),
-            data: message
-                .into_iter()
-                .map(|v| {
-                    let (key, value) = v;
-                    KeyStringValuePair {
-                        key: key.to_string(),
-                        value: value.to_string(),
-                    }
-                })
-                .collect(),
-        };
-        self.with_span_object_mut(|span| span.logs.push(log));
+        self.with_span_object_mut(|span| span.add_log(message))
     }
 
     /// Add tag to the span.
     pub fn add_tag(&mut self, key: impl ToString, value: impl ToString) {
-        self.with_span_object_mut(|span| {
-            span.tags.push(KeyStringValuePair {
-                key: key.to_string(),
-                value: value.to_string(),
-            })
-        })
+        self.with_span_object_mut(|span| span.add_tag(key, value))
     }
 }
 

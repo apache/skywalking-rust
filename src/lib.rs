@@ -17,15 +17,10 @@
 #![warn(clippy::dbg_macro, clippy::print_stdout)]
 #![doc = include_str!("../README.md")]
 
-pub mod skywalking_proto {
-    pub mod v3 {
-        tonic::include_proto!("skywalking.v3");
-    }
-}
-
 pub mod common;
 pub mod context;
 pub(crate) mod error;
 pub mod reporter;
+pub mod skywalking_proto;
 
 pub use error::{Error, Result};
