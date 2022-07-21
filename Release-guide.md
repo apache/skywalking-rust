@@ -106,7 +106,7 @@ The voting process is as follows:
 
 ```
 > export SVN_EDITOR=vim
-> svn mv https://dist.apache.org/repos/dist/dev/skywalking/x.y.z https://dist.apache.org/repos/dist/release/skywalking
+> svn mv https://dist.apache.org/repos/dist/dev/skywalking/rust/x.y.z https://dist.apache.org/repos/dist/release/skywalking/rust
 ....
 enter your apache password
 ....
