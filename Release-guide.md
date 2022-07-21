@@ -120,6 +120,10 @@ enter your apache password
 > cargo publish 
 ```
 
+3. Add an release event, update download and doc releases on the SkyWalking website.
+4. Add the new release on [ASF addrelease site](https://reporter.apache.org/addrelease.html?skywalking).
+5. Remove the old releases on `https://dist.apache.org/repos/dist/release/skywalking/rust/{previous-version}`.
+
 ## Send a release announcement
 
 Send ANNOUNCE email to `dev@skywalking.apache.org`, `announce@apache.org`. The sender should use the Apache email
