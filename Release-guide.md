@@ -106,7 +106,7 @@ The voting process is as follows:
 
 ```
 > export SVN_EDITOR=vim
-> svn mv https://dist.apache.org/repos/dist/dev/skywalking/x.y.z https://dist.apache.org/repos/dist/release/skywalking
+> svn mv https://dist.apache.org/repos/dist/dev/skywalking/rust/x.y.z https://dist.apache.org/repos/dist/release/skywalking/rust
 ....
 enter your apache password
 ....
@@ -119,6 +119,10 @@ enter your apache password
 # Make sure you are on `owner` list, reach private@skywalking.apache.org if you are a committer/PMC but not listed.
 > cargo publish 
 ```
+
+3. Add an release event, update download and doc releases on the SkyWalking website.
+4. Add the new release on [ASF addrelease site](https://reporter.apache.org/addrelease.html?skywalking).
+5. Remove the old releases on `https://dist.apache.org/repos/dist/release/skywalking/rust/{previous-version}`.
 
 ## Send a release announcement
 
