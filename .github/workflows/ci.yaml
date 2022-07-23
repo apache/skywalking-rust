@@ -65,7 +65,6 @@ jobs:
       matrix:
         features:
           - ""
-          - "--features sync"
           - "--all-features"
     runs-on: ubuntu-latest
     steps:

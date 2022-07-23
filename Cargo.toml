@@ -33,9 +33,6 @@ homepage = "https://skywalking.apache.org/"
 repository = "https://github.com/apache/skywalking-rust"
 
 [features]
-sync = []
-full = ["sync"]
-
 mock = []  # For internal integration testing only, do not use.
 
 [dependencies]
@@ -72,4 +69,3 @@ path = "examples/simple_trace_report.rs"
 [[example]]
 name = "sync_trace_report"
 path = "examples/sync_trace_report.rs"
-required-features = ["sync"]
