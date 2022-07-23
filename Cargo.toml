@@ -44,6 +44,7 @@ futures-core = "0.3.21"
 futures-util = "0.3.21"
 prost = "0.10.4"
 prost-derive = "0.10.1"
+serde = { version = "1.0.138", features = ["derive"] }
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["parking_lot"] }
 tonic = { version = "0.7.2", features = ["codegen"] }
