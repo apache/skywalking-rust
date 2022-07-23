@@ -19,11 +19,14 @@ pub mod log;
 
 use crate::skywalking_proto::v3::SegmentObject;
 use std::collections::LinkedList;
+use std::{error::Error, result::Result};
 use tonic::async_trait;
 
 pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
 
 #[async_trait]
 pub trait Reporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()>;
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
+
+    fn sync_collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
 }

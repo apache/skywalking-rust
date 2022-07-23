@@ -54,11 +54,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::spawn(handle_request(tracer.clone()));
 
     // Start to report.
-    let handle = tracer.reporting(async move {
-        let _ = signal::ctrl_c().await;
-    });
-
-    handle.await?;
+    tracer
+        .reporting()
+        .with_graceful_shutdown(async move {
+            let _ = signal::ctrl_c().await.unwrap();
+        })
+        .await?;
 
     Ok(())
 }

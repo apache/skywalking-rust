@@ -81,11 +81,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::spawn(handle_request(tracer.clone()));
 
     // Start to report.
-    let handle = tracer.reporting(async move {
-        let _ = signal::ctrl_c().await;
-    });
-
-    handle.await?;
+    tracer
+        .reporting()
+        .with_graceful_shutdown(async move {
+            let _ = signal::ctrl_c().await;
+        })
+        .await?;
 
     Ok(())
 }
@@ -104,6 +105,7 @@ use `cargo run --example simple_trace_report`
 which outputs executable, then run it.
 
 # Release
+
 The SkyWalking committer(PMC included) could follow [this doc](Release-guide.md) to release an official version.
 
 # License

@@ -16,14 +16,18 @@
 
 use super::Reporter;
 use crate::skywalking_proto::v3::SegmentObject;
-use std::collections::LinkedList;
+use std::{collections::LinkedList, error::Error};
 use tonic::async_trait;
 
 pub struct LogReporter;
 
 #[async_trait]
 impl Reporter for LogReporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()> {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
+        self.sync_collect(segments)
+    }
+
+    fn sync_collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         for segment in segments {
             tracing::info!(?segment, "Do trace");
         }
