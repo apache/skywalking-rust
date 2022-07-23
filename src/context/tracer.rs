@@ -263,7 +263,7 @@ impl WeakTracer {
 }
 
 /// Created by [Tracer::reporting].
-/// 
+///
 /// Support both async method `.await` and sync method `wait()`.
 pub struct Reporting {
     tracer: Tracer,

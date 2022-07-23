@@ -30,11 +30,9 @@ pub struct LogReporter {
 }
 
 impl LogReporter {
+    #[inline]
     pub fn new() -> Self {
-        Self {
-            tip: "Collect".to_string(),
-            used: Used::Println,
-        }
+        Default::default()
     }
 
     pub fn tip(mut self, tip: String) -> Self {
@@ -50,6 +48,15 @@ impl LogReporter {
     pub fn use_println(mut self) -> Self {
         self.used = Used::Println;
         self
+    }
+}
+
+impl Default for LogReporter {
+    fn default() -> Self {
+        Self {
+            tip: "Collect".to_string(),
+            used: Used::Println,
+        }
     }
 }
 
