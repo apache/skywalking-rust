@@ -49,3 +49,20 @@ impl SpanObject {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    trait AssertSerialize: serde::Serialize {}
+
+    impl AssertSerialize for SegmentObject {}
+
+    impl AssertSerialize for SpanObject {}
+
+    trait AssertDeserialize<'de>: serde::Deserialize<'de> {}
+
+    impl AssertDeserialize<'_> for SegmentObject {}
+
+    impl AssertDeserialize<'_> for SpanObject {}
+}
