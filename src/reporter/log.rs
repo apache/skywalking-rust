@@ -19,7 +19,39 @@ use crate::skywalking_proto::v3::SegmentObject;
 use std::{collections::LinkedList, error::Error};
 use tonic::async_trait;
 
-pub struct LogReporter;
+enum Used {
+    Println,
+    Tracing,
+}
+
+pub struct LogReporter {
+    tip: String,
+    used: Used,
+}
+
+impl LogReporter {
+    pub fn new() -> Self {
+        Self {
+            tip: "Collect".to_string(),
+            used: Used::Println,
+        }
+    }
+
+    pub fn tip(mut self, tip: String) -> Self {
+        self.tip = tip;
+        self
+    }
+
+    pub fn use_tracing(mut self) -> Self {
+        self.used = Used::Tracing;
+        self
+    }
+
+    pub fn use_println(mut self) -> Self {
+        self.used = Used::Println;
+        self
+    }
+}
 
 #[async_trait]
 impl Reporter for LogReporter {
@@ -29,7 +61,10 @@ impl Reporter for LogReporter {
 
     fn sync_collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         for segment in segments {
-            tracing::info!(?segment, "Do trace");
+            match self.used {
+                Used::Println => println!("{} segment={:?}", self.tip, segment),
+                Used::Tracing => tracing::info!(?segment, "{}", self.tip),
+            }
         }
         Ok(())
     }

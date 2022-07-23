@@ -262,6 +262,9 @@ impl WeakTracer {
     }
 }
 
+/// Created by [Tracer::reporting].
+/// 
+/// Support both async method `.await` and sync method `wait()`.
 pub struct Reporting {
     tracer: Tracer,
     handle: Option<JoinHandle<()>>,
@@ -273,6 +276,10 @@ impl Reporting {
         mut self,
         shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
     ) -> Self {
+        if self.is_spawned() {
+            panic!("must call before spawn");
+        }
+
         self.shutdown_signal = Some(Box::pin(shutdown_signal));
         self
     }
@@ -290,6 +297,10 @@ impl Reporting {
             None => tokio::spawn(tracer.do_reporting(future::pending())),
         };
         self.handle = Some(handle);
+    }
+
+    fn is_spawned(&self) -> bool {
+        self.handle.is_some()
     }
 
     pub fn wait(self) {

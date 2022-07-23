@@ -31,7 +31,7 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  CI:
+  license-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -41,17 +41,51 @@ jobs:
         uses: apache/skywalking-eyes/header/@501a28d2fb4a9b962661987e50cf0219631b32ff
         with:
           config: .github/licenserc.yaml
-      - name: Check dependencies License
+      - name: Check Dependencies License
         uses: apache/skywalking-eyes/dependency/@501a28d2fb4a9b962661987e50cf0219631b32ff
         with:
           config: .github/licenserc.yaml
+
+  fmt-and-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
       - name: Install Rust toolchain
         run: rustup toolchain install stable --component clippy --component rustfmt
       - name: Run format
         run: cargo fmt --all -- --check
       - name: Run clippy
         run: cargo clippy --workspace --tests -- -D warnings
+
+  check-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""
+          - "--features sync"
+          - "--all-features"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Run check
+        run: cargo check --workspace --release ${{ matrix.features }}
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --release  ${{ matrix.features }}
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
       - name: Run docs
-        run: cargo rustdoc --all-features -- -D warnings
+        run: cargo rustdoc --all-features --release -- -D warnings
