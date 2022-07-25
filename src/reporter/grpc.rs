@@ -52,8 +52,4 @@ impl Reporter for GrpcReporter {
         self.client.collect(stream).await?;
         Ok(())
     }
-
-    fn sync_collect(&mut self, _segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
-        panic!("GrpcReporter not support sync collect");
-    }
 }

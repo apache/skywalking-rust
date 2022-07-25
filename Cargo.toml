@@ -65,7 +65,3 @@ required-features = ["mock"]
 [[example]]
 name = "simple_trace_report"
 path = "examples/simple_trace_report.rs"
-
-[[example]]
-name = "sync_trace_report"
-path = "examples/sync_trace_report.rs"

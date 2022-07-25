@@ -63,10 +63,6 @@ impl Default for LogReporter {
 #[async_trait]
 impl Reporter for LogReporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
-        self.sync_collect(segments)
-    }
-
-    fn sync_collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         for segment in segments {
             match self.used {
                 Used::Println => println!("{} segment={:?}", self.tip, segment),

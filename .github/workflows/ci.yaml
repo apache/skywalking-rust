@@ -46,18 +46,16 @@ jobs:
         with:
           config: .github/licenserc.yaml
 
-  fmt-and-clippy:
+  fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --component clippy --component rustfmt
+        run: rustup toolchain install stable --component rustfmt
       - name: Run format
         run: cargo fmt --all -- --check
-      - name: Run clippy
-        run: cargo clippy --workspace --tests -- -D warnings
 
   check-and-test:
     strategy:
@@ -72,11 +70,13 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install Rust toolchain
-        run: rustup toolchain install stable
+        run: rustup toolchain install stable --component clippy
       - name: Run check
         run: cargo check --workspace --release ${{ matrix.features }}
+      - name: Run clippy
+        run: cargo clippy --workspace --release ${{ matrix.features }} -- -D warnings
       - name: Run tests
-        run: cargo test --workspace --release  ${{ matrix.features }}
+        run: cargo test --workspace --release ${{ matrix.features }}
 
   doc:
     runs-on: ubuntu-latest
@@ -87,4 +87,4 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install stable
       - name: Run docs
-        run: cargo rustdoc --all-features --release -- -D warnings
+        run: cargo rustdoc --release -- -D warnings

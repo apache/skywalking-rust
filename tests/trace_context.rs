@@ -327,11 +327,7 @@ impl MockReporter {
 
         let tracer = f1(reporter.clone());
 
-        tracer
-            .reporting()
-            .with_graceful_shutdown(future::ready(()))
-            .await
-            .unwrap();
+        tracer.reporting(future::ready(())).await.unwrap();
 
         let segments = reporter.segments.try_lock().unwrap();
         f2(&*segments);
@@ -341,10 +337,6 @@ impl MockReporter {
 #[tonic::async_trait]
 impl Reporter for MockReporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
-        self.sync_collect(segments)
-    }
-
-    fn sync_collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         self.segments.try_lock().unwrap().extend(segments);
         Ok(())
     }

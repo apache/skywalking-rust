@@ -82,9 +82,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Start to report.
     tracer
-        .reporting()
-        .with_graceful_shutdown(async move {
-            let _ = signal::ctrl_c().await;
+        .reporting(async move {
+            let _ = signal::ctrl_c().await.unwrap();
         })
         .await?;
 

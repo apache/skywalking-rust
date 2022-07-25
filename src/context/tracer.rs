@@ -19,13 +19,12 @@ use crate::{
     context::trace_context::TracingContext, reporter::DynReporter, reporter::Reporter,
     skywalking_proto::v3::SegmentObject,
 };
-use std::future::{self, Future};
-use std::mem::take;
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::Weak;
 use std::task::{Context, Poll};
 use std::{collections::LinkedList, sync::Arc};
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::OnceCell;
 use tokio::task::JoinError;
 use tokio::{
     sync::{
@@ -62,14 +61,14 @@ pub fn create_trace_context_from_propagation(context: PropagationContext) -> Tra
 /// Start to reporting by global tracer, quit when shutdown_signal received.
 ///
 /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-pub fn reporting() -> Reporting {
-    global_tracer().reporting()
+pub fn reporting(shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static) -> Reporting {
+    global_tracer().reporting(shutdown_signal)
 }
 
 struct Inner {
     service_name: String,
     instance_name: String,
-    segment_sender: RwLock<Option<mpsc::UnboundedSender<SegmentObject>>>,
+    segment_sender: mpsc::UnboundedSender<SegmentObject>,
     segment_receiver: Mutex<mpsc::UnboundedReceiver<SegmentObject>>,
     reporter: Box<Mutex<DynReporter>>,
 }
@@ -93,7 +92,7 @@ impl Tracer {
             inner: Arc::new(Inner {
                 service_name: service_name.to_string(),
                 instance_name: instance_name.to_string(),
-                segment_sender: RwLock::new(Some(segment_sender)),
+                segment_sender,
                 segment_receiver: Mutex::new(segment_receiver),
                 reporter: Box::new(Mutex::new(reporter)),
             }),
@@ -133,19 +132,7 @@ impl Tracer {
     /// Finalize the trace context.
     pub(crate) fn finalize_context(&self, context: &mut TracingContext) {
         let segment_object = context.convert_segment_object();
-        let segment_sender = match self.inner.segment_sender.try_read() {
-            Ok(segment_sender) => segment_sender,
-            Err(_) => {
-                tracing::error!("segment object sender is locked");
-                return;
-            }
-        };
-
-        if segment_sender
-            .as_ref()
-            .and_then(|segment_sender| segment_sender.send(segment_object).ok())
-            .is_none()
-        {
+        if self.inner.segment_sender.send(segment_object).is_err() {
             tracing::error!("segment object channel has closed");
         }
     }
@@ -153,11 +140,12 @@ impl Tracer {
     /// Start to reporting, quit when shutdown_signal received.
     ///
     /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-    pub fn reporting(&self) -> Reporting {
+    pub fn reporting(
+        &self,
+        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
+    ) -> Reporting {
         Reporting {
-            tracer: self.clone(),
-            handle: None,
-            shutdown_signal: None,
+            handle: tokio::spawn(self.clone().do_reporting(shutdown_signal)),
         }
     }
 
@@ -213,37 +201,6 @@ impl Tracer {
         }
     }
 
-    fn do_sync_reporting(self) {
-        loop {
-            let mut segment_receiver = self.inner.segment_receiver.blocking_lock();
-            let mut segments = LinkedList::new();
-
-            let segment = segment_receiver.blocking_recv();
-            drop(segment_receiver);
-
-            if let Some(segment) = segment {
-                // TODO Implement batch collect in future.
-                segments.push_back(segment);
-                Self::sync_report_segment_object(&self.inner.reporter, segments);
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn sync_report_segment_object(
-        reporter: &Mutex<DynReporter>,
-        segments: LinkedList<SegmentObject>,
-    ) {
-        if let Err(e) = reporter.blocking_lock().sync_collect(segments) {
-            tracing::error!("Collect failed: {:?}", e);
-        }
-    }
-
-    pub fn close(&self) {
-        take(&mut *self.inner.segment_sender.blocking_write());
-    }
-
     fn downgrade(&self) -> WeakTracer {
         WeakTracer {
             inner: Arc::downgrade(&self.inner),
@@ -266,56 +223,14 @@ impl WeakTracer {
 ///
 /// Support both async method `.await` and sync method `wait()`.
 pub struct Reporting {
-    tracer: Tracer,
-    handle: Option<JoinHandle<()>>,
-    shutdown_signal: Option<Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
-}
-
-impl Reporting {
-    pub fn with_graceful_shutdown(
-        mut self,
-        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> Self {
-        if self.is_spawned() {
-            panic!("must call before spawn");
-        }
-
-        self.shutdown_signal = Some(Box::pin(shutdown_signal));
-        self
-    }
-
-    pub fn spawn(mut self) -> Self {
-        self.do_spawn();
-        self
-    }
-
-    fn do_spawn(&mut self) {
-        let tracer = self.tracer.clone();
-        let shutdown_signal = take(&mut self.shutdown_signal);
-        let handle = match shutdown_signal {
-            Some(shutdown_signal) => tokio::spawn(tracer.do_reporting(shutdown_signal)),
-            None => tokio::spawn(tracer.do_reporting(future::pending())),
-        };
-        self.handle = Some(handle);
-    }
-
-    fn is_spawned(&self) -> bool {
-        self.handle.is_some()
-    }
-
-    pub fn wait(self) {
-        self.tracer.do_sync_reporting();
-    }
+    handle: JoinHandle<()>,
 }
 
 impl Future for Reporting {
     type Output = Result<(), JoinError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.handle.is_none() {
-            self.do_spawn();
-        }
-        Pin::new(self.handle.as_mut().unwrap()).poll(cx)
+        Pin::new(&mut self.handle).poll(cx)
     }
 }
 
