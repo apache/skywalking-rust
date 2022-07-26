@@ -19,6 +19,7 @@ use crate::{
     context::trace_context::TracingContext, reporter::DynReporter, reporter::Reporter,
     skywalking_proto::v3::SegmentObject,
 };
+use std::error::Error;
 use std::future::Future;
 use std::sync::Weak;
 use std::{collections::LinkedList, sync::Arc};
@@ -30,6 +31,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tonic::async_trait;
 
 static GLOBAL_TRACER: OnceCell<Tracer> = OnceCell::const_new();
 
@@ -62,6 +64,34 @@ pub fn reporting(
     shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
 ) -> JoinHandle<()> {
     global_tracer().reporting(shutdown_signal)
+}
+
+pub trait SegmentSender {
+    fn send(&self, segment: SegmentObject) -> Result<(), Box<dyn Error>>;
+}
+
+impl SegmentSender for mpsc::UnboundedSender<SegmentObject> {
+    fn send(&self, segment: SegmentObject) -> Result<(), Box<dyn Error>> {
+        Ok(self.send(segment)?)
+    }
+}
+
+#[async_trait]
+pub trait SegmentReceiver {
+    async fn recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error>>;
+
+    async fn try_recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error>>;
+}
+
+#[async_trait]
+impl SegmentReceiver for Mutex<mpsc::UnboundedReceiver<SegmentObject>> {
+    async fn recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error>> {
+        Ok(self.lock().await.recv().await)
+    }
+
+    async fn try_recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error>> {
+        // Ok(self.lock().await.try_recv())
+    }
 }
 
 struct Inner {
