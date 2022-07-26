@@ -64,7 +64,7 @@ fn invalid_sample() {
 
 #[test]
 fn basic_encode() {
-    let tracer = Tracer::new("mesh", "instance", LogReporter);
+    let tracer = Tracer::new("mesh", "instance", LogReporter::new());
     let tc = tracer.create_trace_context();
     let res = encode_propagation(&tc, "/api/v1/health", "example.com:8080");
     let res2 = decode_propagation(&res).unwrap();

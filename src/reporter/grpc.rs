@@ -19,7 +19,7 @@ use crate::skywalking_proto::v3::{
     trace_segment_report_service_client::TraceSegmentReportServiceClient, SegmentObject,
 };
 use futures_util::stream;
-use std::collections::LinkedList;
+use std::{collections::LinkedList, error::Error};
 use tonic::{
     async_trait,
     transport::{self, Channel, Endpoint},
@@ -47,7 +47,7 @@ impl GrpcReporter {
 
 #[async_trait]
 impl Reporter for GrpcReporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> crate::Result<()> {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         let stream = stream::iter(segments);
         self.client.collect(stream).await?;
         Ok(())

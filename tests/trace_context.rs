@@ -15,10 +15,8 @@
 //
 
 use prost::Message;
-use skywalking::context::propagation::context::PropagationContext;
 use skywalking::context::propagation::decoder::decode_propagation;
 use skywalking::context::propagation::encoder::encode_propagation;
-use skywalking::context::trace_context::TracingContext;
 use skywalking::context::tracer::Tracer;
 use skywalking::reporter::log::LogReporter;
 use skywalking::reporter::Reporter;
@@ -27,10 +25,9 @@ use skywalking::skywalking_proto::v3::{
     SpanType,
 };
 use std::collections::LinkedList;
-use std::sync::Mutex;
-use std::{cell::Ref, sync::Arc};
+use std::error::Error;
+use std::sync::{Arc, Mutex};
 use std::{future, thread};
-use tokio::runtime::Handle;
 
 /// Serialize from A should equal Serialize from B
 #[allow(dead_code)]
@@ -70,7 +67,7 @@ async fn create_span() {
                     })
                     .collect();
                 let expected_log = vec![Log {
-                    time: 100,
+                    time: 10,
                     data: expected_log_message,
                 }];
                 span1.add_log(logs);
@@ -119,19 +116,19 @@ async fn create_span() {
                 }
 
                 {
-                    let span4 = context.create_exit_span("op3", "example.com/test");
+                    let _span4 = context.create_local_span("op4");
 
                     {
-                        let span5 = context.create_exit_span("op4", "example.com/test");
+                        let span5 = context.create_exit_span("op5", "example.com/test");
                         drop(span5);
 
                         let span5_expected = SpanObject {
-                            span_id: 3,
-                            parent_span_id: 2,
-                            start_time: 100,
+                            span_id: 4,
+                            parent_span_id: 3,
+                            start_time: 1,
                             end_time: 100,
                             refs: Vec::<SegmentReference>::new(),
-                            operation_name: "op4".to_string(),
+                            operation_name: "op5".to_string(),
                             peer: "example.com/test".to_string(),
                             span_type: SpanType::Exit as i32,
                             span_layer: SpanLayer::Http as i32,
@@ -152,7 +149,7 @@ async fn create_span() {
                 let span1_expected = SpanObject {
                     span_id: 0,
                     parent_span_id: -1,
-                    start_time: 100,
+                    start_time: 1,
                     end_time: 100,
                     refs: Vec::<SegmentReference>::new(),
                     operation_name: "op1".to_string(),
@@ -185,12 +182,18 @@ async fn create_span() {
 
 #[test]
 #[should_panic]
-fn create_span_failed() {
-    let tracer = Tracer::new("service", "instance", LogReporter);
+fn create_local_span_failed() {
+    let tracer = Tracer::new("service", "instance", LogReporter::new());
     let mut context = tracer.create_trace_context();
+    let _span1 = context.create_local_span("op1");
+}
 
-    let _span1 = context.create_entry_span("op1");
-    let _span2 = context.create_entry_span("op2");
+#[test]
+#[should_panic]
+fn create_exit_span_failed() {
+    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let mut context = tracer.create_trace_context();
+    let _span1 = context.create_exit_span("op1", "example.com/test");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -217,7 +220,7 @@ async fn create_span_from_context() {
 
 #[test]
 fn crossprocess_test() {
-    let tracer = Tracer::new("service", "instance", LogReporter);
+    let tracer = Tracer::new("service", "instance", LogReporter::new());
     let mut context1 = tracer.create_trace_context();
     assert_eq!(context1.service(), "service");
     assert_eq!(context1.service_instance(), "instance");
@@ -230,7 +233,7 @@ fn crossprocess_test() {
             let enc_prop = encode_propagation(&context1, "endpoint", "address");
             let dec_prop = decode_propagation(&enc_prop).unwrap();
 
-            let tracer = Tracer::new("service2", "instance2", LogReporter);
+            let tracer = Tracer::new("service2", "instance2", LogReporter::new());
             let mut context2 = tracer.create_trace_context_from_propagation(dec_prop);
 
             let span3 = context2.create_entry_span("op2");
@@ -281,14 +284,14 @@ async fn cross_threads_test() {
             tracer
         },
         |segments| {
-            let iter = segments.iter();
-            let first = iter.nth(0).unwrap();
-            let second = iter.nth(1).unwrap();
+            let mut iter = segments.iter();
+            let first = iter.next().unwrap();
+            let second = iter.next().unwrap();
 
             assert_eq!(first.trace_id, second.trace_id);
-            assert_eq!(first.spans.refs.len(), 1);
+            assert_eq!(first.spans.last().unwrap().refs.len(), 1);
             assert_eq!(
-                first.spans.refs[0],
+                first.spans.last().unwrap().refs[0],
                 SegmentReference {
                     ref_type: RefType::CrossThread as i32,
                     trace_id: second.trace_id.clone(),
@@ -333,7 +336,7 @@ impl MockReporter {
 
 #[tonic::async_trait]
 impl Reporter for MockReporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> skywalking::Result<()> {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         self.segments.try_lock().unwrap().extend(segments);
         Ok(())
     }
