@@ -32,12 +32,17 @@ env:
 
 jobs:
   CI:
-    runs-on: ubuntu-latest
     needs:
     - license-check
     - fmt
     - check-and-test
     - doc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+
   license-check:
     runs-on: ubuntu-latest
     steps:
