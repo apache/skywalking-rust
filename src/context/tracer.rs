@@ -20,9 +20,12 @@ use crate::{
     skywalking_proto::v3::SegmentObject,
 };
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Weak;
+use std::task::{Context, Poll};
 use std::{collections::LinkedList, sync::Arc};
 use tokio::sync::OnceCell;
+use tokio::task::JoinError;
 use tokio::{
     sync::{
         mpsc::{self},
@@ -58,9 +61,7 @@ pub fn create_trace_context_from_propagation(context: PropagationContext) -> Tra
 /// Start to reporting by global tracer, quit when shutdown_signal received.
 ///
 /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-pub fn reporting(
-    shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-) -> JoinHandle<()> {
+pub fn reporting(shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static) -> Reporting {
     global_tracer().reporting(shutdown_signal)
 }
 
@@ -142,8 +143,10 @@ impl Tracer {
     pub fn reporting(
         &self,
         shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> JoinHandle<()> {
-        tokio::spawn(Self::do_reporting(self.clone(), shutdown_signal))
+    ) -> Reporting {
+        Reporting {
+            handle: tokio::spawn(self.clone().do_reporting(shutdown_signal)),
+        }
     }
 
     async fn do_reporting(self, shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static) {
@@ -213,6 +216,19 @@ pub(crate) struct WeakTracer {
 impl WeakTracer {
     pub(crate) fn upgrade(&self) -> Option<Tracer> {
         Weak::upgrade(&self.inner).map(|inner| Tracer { inner })
+    }
+}
+
+/// Created by [Tracer::reporting].
+pub struct Reporting {
+    handle: JoinHandle<()>,
+}
+
+impl Future for Reporting {
+    type Output = Result<(), JoinError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.handle).poll(cx)
     }
 }
 
