@@ -33,4 +33,10 @@ pub enum Error {
 
     #[error("tonic status: {0}")]
     TonicStatus(#[from] tonic::Status),
+
+    #[error("tokio join failed: {0}")]
+    TokioJoin(#[from] tokio::task::JoinError),
+
+    #[error(transparent)]
+    Other(#[from] Box<dyn std::error::Error + Send + 'static>),
 }
