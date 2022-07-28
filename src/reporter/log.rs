@@ -54,7 +54,7 @@ impl LogReporter {
 impl Default for LogReporter {
     fn default() -> Self {
         Self {
-            tip: "Collect".to_string(),
+            tip: "collect".to_string(),
             used: Used::Println,
         }
     }

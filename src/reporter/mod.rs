@@ -28,3 +28,13 @@ pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
 pub trait Reporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
 }
+
+#[async_trait]
+impl Reporter for () {
+    async fn collect(
+        &mut self,
+        _segments: LinkedList<SegmentObject>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+}
