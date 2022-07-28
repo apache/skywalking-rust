@@ -325,7 +325,7 @@ impl Future for Reporting {
     type Output = crate::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.handle).poll(cx).map(|r| Ok(r??))
+        Pin::new(&mut self.handle).poll(cx).map(|r| r?)
     }
 }
 
