@@ -15,18 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 //
-use hyper::client::HttpConnector;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Client, Method, Request, Response, Server, StatusCode};
-use skywalking::context::propagation::context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY;
-use skywalking::context::propagation::decoder::decode_propagation;
-use skywalking::context::propagation::encoder::encode_propagation;
-use skywalking::context::tracer::{self, Tracer};
-use skywalking::reporter::grpc::GrpcReporter;
-use std::convert::Infallible;
-use std::error::Error;
-use std::future;
-use std::net::SocketAddr;
+use hyper::{
+    client::HttpConnector,
+    service::{make_service_fn, service_fn},
+    Body, Client, Method, Request, Response, Server, StatusCode,
+};
+use skywalking::{
+    context::{
+        propagation::{
+            context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY, decoder::decode_propagation,
+            encoder::encode_propagation,
+        },
+        tracer::{self, Tracer},
+    },
+    reporter::grpc::GrpcReporter,
+};
+use std::{convert::Infallible, error::Error, future, net::SocketAddr};
 use structopt::StructOpt;
 
 static NOT_FOUND_MSG: &str = "not found";

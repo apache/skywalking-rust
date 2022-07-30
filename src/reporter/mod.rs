@@ -18,8 +18,7 @@ pub mod grpc;
 pub mod log;
 
 use crate::skywalking_proto::v3::SegmentObject;
-use std::collections::LinkedList;
-use std::{error::Error, result::Result};
+use std::{collections::LinkedList, error::Error, result::Result};
 use tonic::async_trait;
 
 pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
