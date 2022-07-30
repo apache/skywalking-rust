@@ -16,21 +16,25 @@
 
 use super::propagation::context::PropagationContext;
 use crate::{
-    context::trace_context::TracingContext, reporter::DynReporter, reporter::Reporter,
+    context::trace_context::TracingContext,
+    reporter::{DynReporter, Reporter},
     skywalking_proto::v3::SegmentObject,
 };
-use std::error::Error;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Weak;
-use std::task::{Context, Poll};
-use std::{collections::LinkedList, sync::Arc};
-use tokio::sync::OnceCell;
+use std::{
+    collections::LinkedList,
+    error::Error,
+    future::Future,
+    pin::Pin,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
+    task::{Context, Poll},
+};
 use tokio::{
     sync::{
         mpsc::{self},
-        Mutex,
+        Mutex, OnceCell,
     },
     task::JoinHandle,
 };

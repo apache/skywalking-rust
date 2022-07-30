@@ -20,9 +20,8 @@ use super::{
     tracer::{Tracer, WeakTracer},
 };
 use crate::{
-    common::random_generator::RandomGenerator, context::propagation::context::PropagationContext,
-};
-use crate::{
+    common::random_generator::RandomGenerator,
+    context::propagation::context::PropagationContext,
     error::LOCK_MSG,
     skywalking_proto::v3::{
         RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType,
@@ -93,8 +92,9 @@ impl TracingContext {
     }
 
     /// Generate a new trace context using the propagated context.
-    /// They should be propagated on `sw8` header in HTTP request with encoded form.
-    /// You can retrieve decoded context with `skywalking::context::propagation::encoder::encode_propagation`
+    /// They should be propagated on `sw8` header in HTTP request with encoded
+    /// form. You can retrieve decoded context with
+    /// `skywalking::context::propagation::encoder::encode_propagation`
     pub(crate) fn from_propagation_context(
         service_name: impl ToString,
         instance_name: impl ToString,
@@ -205,8 +205,8 @@ impl TracingContext {
     }
 
     /// Create a new entry span, which is an initiator of collection of spans.
-    /// This should be called by invocation of the function which is triggered by
-    /// external service.
+    /// This should be called by invocation of the function which is triggered
+    /// by external service.
     pub fn create_entry_span(&mut self, operation_name: &str) -> Span {
         let mut span = Span::new_obj(
             self.inc_next_span_id(),
@@ -235,8 +235,8 @@ impl TracingContext {
         Span::new(index, self.downgrade())
     }
 
-    /// Create a new exit span, which will be created when tracing context will generate
-    /// new span for function invocation.
+    /// Create a new exit span, which will be created when tracing context will
+    /// generate new span for function invocation.
     /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
     ///
     /// # Panics

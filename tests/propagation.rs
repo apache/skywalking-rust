@@ -15,12 +15,16 @@
 //
 
 #![allow(unused_imports)]
-use skywalking::context::propagation::context::PropagationContext;
-use skywalking::context::propagation::decoder::decode_propagation;
-use skywalking::context::propagation::encoder::encode_propagation;
-use skywalking::context::trace_context::TracingContext;
-use skywalking::context::tracer::Tracer;
-use skywalking::reporter::log::LogReporter;
+use skywalking::{
+    context::{
+        propagation::{
+            context::PropagationContext, decoder::decode_propagation, encoder::encode_propagation,
+        },
+        trace_context::TracingContext,
+        tracer::Tracer,
+    },
+    reporter::log::LogReporter,
+};
 use std::sync::Arc;
 
 #[test]

@@ -65,9 +65,9 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --component rustfmt
+        run: rustup toolchain install nightly --component rustfmt
       - name: Run format
-        run: cargo fmt --all -- --check
+        run: cargo +nightly fmt --all -- --check
 
   check-and-test:
     strategy:

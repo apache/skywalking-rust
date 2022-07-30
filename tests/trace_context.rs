@@ -15,19 +15,24 @@
 //
 
 use prost::Message;
-use skywalking::context::propagation::decoder::decode_propagation;
-use skywalking::context::propagation::encoder::encode_propagation;
-use skywalking::context::tracer::Tracer;
-use skywalking::reporter::log::LogReporter;
-use skywalking::reporter::Reporter;
-use skywalking::skywalking_proto::v3::{
-    KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
-    SpanType,
+use skywalking::{
+    context::{
+        propagation::{decoder::decode_propagation, encoder::encode_propagation},
+        tracer::Tracer,
+    },
+    reporter::{log::LogReporter, Reporter},
+    skywalking_proto::v3::{
+        KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
+        SpanType,
+    },
 };
-use std::collections::LinkedList;
-use std::error::Error;
-use std::sync::{Arc, Mutex};
-use std::{future, thread};
+use std::{
+    collections::LinkedList,
+    error::Error,
+    future,
+    sync::{Arc, Mutex},
+    thread,
+};
 
 /// Serialize from A should equal Serialize from B
 #[allow(dead_code)]
