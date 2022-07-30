@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 //
-use skywalking::context::tracer::Tracer;
-use skywalking::reporter::grpc::GrpcReporter;
+use skywalking::{context::tracer::Tracer, reporter::grpc::GrpcReporter};
 use std::error::Error;
 use tokio::signal;
 

@@ -23,10 +23,12 @@ pub struct PropagationContext {
     /// OAP server and can be analyzed.
     pub do_sample: bool,
 
-    /// It defines trace ID that previous span has. It expresses unique value of entire trace.
+    /// It defines trace ID that previous span has. It expresses unique value of
+    /// entire trace.
     pub parent_trace_id: String,
 
-    /// It defines segment ID that previous span has. It expresses unique value of entire trace.
+    /// It defines segment ID that previous span has. It expresses unique value
+    /// of entire trace.
     pub parent_trace_segment_id: String,
 
     /// It defines parent span's span ID.
@@ -41,13 +43,14 @@ pub struct PropagationContext {
     /// An endpoint name that parent requested to.
     pub destination_endpoint: String,
 
-    /// An address that parent requested to. It can be authority or network address.
+    /// An address that parent requested to. It can be authority or network
+    /// address.
     pub destination_address: String,
 }
 
 /// PropagationContext carries the context which include trace information.
-/// In general, this context will be used if you create new TraceContext after received
-/// decoded context that should be packed in `sw8` header.
+/// In general, this context will be used if you create new TraceContext after
+/// received decoded context that should be packed in `sw8` header.
 impl PropagationContext {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
