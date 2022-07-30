@@ -125,7 +125,7 @@ struct Inner {
     instance_name: String,
     segment_sender: Box<dyn SegmentSender>,
     segment_receiver: Box<dyn SegmentReceiver>,
-    reporter: Box<Mutex<DynReporter>>,
+    reporter: Mutex<Box<DynReporter>>,
     is_reporting: AtomicBool,
     is_closed: AtomicBool,
 }
@@ -165,7 +165,7 @@ impl Tracer {
                 instance_name: instance_name.to_string(),
                 segment_sender: Box::new(channel.0),
                 segment_receiver: Box::new(channel.1),
-                reporter: Box::new(Mutex::new(reporter)),
+                reporter: Mutex::new(Box::new(reporter)),
                 is_reporting: Default::default(),
                 is_closed: Default::default(),
             }),
@@ -178,6 +178,15 @@ impl Tracer {
 
     pub fn instance_name(&self) -> &str {
         &self.inner.instance_name
+    }
+
+    /// Set the reporter, only 
+    pub fn set_reporter(&self, reporter: impl Reporter + Send + Sync + 'static) {
+        if !self.inner.is_reporting.load(Ordering::Relaxed) {
+            if let Ok(mut lock) = self.inner.reporter.try_lock() {
+                *lock = Box::new(reporter);
+            }
+        }
     }
 
     /// Create trace conetxt.
@@ -290,7 +299,7 @@ impl Tracer {
     }
 
     async fn report_segment_object(
-        reporter: &Mutex<DynReporter>,
+        reporter: &Mutex<Box<DynReporter>>,
         segments: LinkedList<SegmentObject>,
     ) {
         if let Err(err) = reporter.lock().await.collect(segments).await {
