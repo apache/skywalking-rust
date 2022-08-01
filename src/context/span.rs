@@ -14,12 +14,17 @@
 // limitations under the License.
 //
 
-use crate::skywalking_proto::v3::{SpanLayer, SpanObject, SpanType};
-use std::fmt::Formatter;
-
+use crate::{
+    error::LOCK_MSG,
+    skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
+};
+use std::{
+    fmt::Formatter,
+    sync::{Arc, Weak},
+};
 use super::{
     system_time::{fetch_time, TimePeriod},
-    trace_context::{TracingContext, WeakTracingContext},
+    trace_context::SpanStack,
 };
 
 /// Span is a concept that represents trace information for a single RPC.
@@ -60,34 +65,38 @@ use super::{
 #[must_use = "assign a variable name to guard the span not be dropped immediately."]
 pub struct Span {
     index: usize,
-    context: WeakTracingContext,
+    stack: Weak<SpanStack>,
 }
 
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("Span");
-        match self.context.upgrade() {
-            Some(context) => {
-                let op = context.try_with_active_span_stack(|stack| {
-                    d.field("data", &stack.get(self.index));
-                });
-                if op.is_none() {
-                    d.field("data", &format_args!("<locked>"));
-                }
-            }
-            None => {
-                d.field("context", &format_args!("<dropped>"));
-            }
-        }
-        d.finish()
+        let span_object: SpanObject;
+        f.debug_struct("Span")
+            .field(
+                "data",
+                match self.stack.upgrade() {
+                    Some(stack) => match stack.active.try_read() {
+                        Ok(spans) => match spans.get(self.index) {
+                            Some(span) => {
+                                span_object = span.clone();
+                                &span_object
+                            }
+                            None => &"<hanged>",
+                        },
+                        Err(_) => &"<locked>",
+                    },
+                    None => &"<dropped>",
+                },
+            )
+            .finish()
     }
 }
 
 const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
-    pub(crate) fn new(index: usize, context: WeakTracingContext) -> Self {
-        Self { index, context }
+    pub(crate) fn new(index: usize, stack: Weak<SpanStack>) -> Self {
+        Self { index, stack }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -114,21 +123,17 @@ impl Span {
         }
     }
 
-    fn upgrade_context(&self) -> TracingContext {
-        self.context.upgrade().expect("Context has dropped")
+    fn upgrade_stack(&self) -> Arc<SpanStack> {
+        self.stack.upgrade().expect("Context has dropped")
     }
 
-    // Notice: Perhaps in the future, `RwLock` can be used instead of `Mutex`, so
-    // `with_*` can be nested. (Although I can't find the meaning of such use at
-    // present.)
     pub fn with_span_object<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> T {
-        self.upgrade_context()
-            .with_active_span_stack(|stack| f(&stack[self.index]))
+        self.upgrade_stack()
+            .with_active(|stack| f(&stack[self.index]))
     }
 
     pub fn with_span_object_mut<T>(&mut self, f: impl FnOnce(&mut SpanObject) -> T) -> T {
-        self.upgrade_context()
-            .with_active_span_stack_mut(|stack| f(&mut stack[self.index]))
+        f(&mut (self.upgrade_stack().active.try_write().expect(LOCK_MSG))[self.index])
     }
 
     pub fn span_id(&self) -> i32 {
@@ -159,9 +164,7 @@ impl Drop for Span {
     ///
     /// Panic if context is dropped or this span isn't the active span.
     fn drop(&mut self) {
-        if self.upgrade_context().finalize_span(self.index).is_err() {
-            panic!("Dropped span isn't the active span");
-        }
+        self.upgrade_stack().finalize_span(self.index);
     }
 }
 

@@ -115,9 +115,7 @@ async fn create_span() {
                         logs: Vec::<Log>::new(),
                         skip_analysis: false,
                     };
-                    context.with_spans(|spans| {
-                        assert_eq!(spans.last(), Some(&span3_expected));
-                    });
+                    assert_eq!(context.last_span(), Some(span3_expected));
                 }
 
                 {
@@ -143,9 +141,7 @@ async fn create_span() {
                             logs: Vec::<Log>::new(),
                             skip_analysis: false,
                         };
-                        context.with_spans(|spans| {
-                            assert_eq!(spans.last(), Some(&span5_expected));
-                        });
+                        assert_eq!(context.last_span(), Some(span5_expected));
                     }
                 }
 
@@ -167,9 +163,7 @@ async fn create_span() {
                     logs: expected_log,
                     skip_analysis: false,
                 };
-                context.with_spans(|spans| {
-                    assert_eq!(spans.last(), Some(&span1_expected));
-                });
+                assert_eq!(context.last_span(), Some(span1_expected));
             }
 
             tracer
@@ -244,25 +238,24 @@ fn crossprocess_test() {
             let span3 = context2.create_entry_span("op2");
             drop(span3);
 
-            context2.with_spans(|spans| {
-                let span3 = spans.last().unwrap();
-                assert_eq!(span3.span_id, 0);
-                assert_eq!(span3.parent_span_id, -1);
-                assert_eq!(span3.refs.len(), 1);
+            let span3 = context2.last_span().unwrap();
 
-                let expected_ref = SegmentReference {
-                    ref_type: RefType::CrossProcess as i32,
-                    trace_id: context2.trace_id().to_owned(),
-                    parent_trace_segment_id: context1.trace_segment_id().to_owned(),
-                    parent_span_id: 1,
-                    parent_service: context1.service().to_owned(),
-                    parent_service_instance: context1.service_instance().to_owned(),
-                    parent_endpoint: "endpoint".to_string(),
-                    network_address_used_at_peer: "address".to_string(),
-                };
+            assert_eq!(span3.span_id, 0);
+            assert_eq!(span3.parent_span_id, -1);
+            assert_eq!(span3.refs.len(), 1);
 
-                check_serialize_equivalent(&expected_ref, &span3.refs[0]);
-            });
+            let expected_ref = SegmentReference {
+                ref_type: RefType::CrossProcess as i32,
+                trace_id: context2.trace_id().to_owned(),
+                parent_trace_segment_id: context1.trace_segment_id().to_owned(),
+                parent_span_id: 1,
+                parent_service: context1.service().to_owned(),
+                parent_service_instance: context1.service_instance().to_owned(),
+                parent_endpoint: "endpoint".to_string(),
+                network_address_used_at_peer: "address".to_string(),
+            };
+
+            check_serialize_equivalent(&expected_ref, &span3.refs[0]);
         }
     }
 }

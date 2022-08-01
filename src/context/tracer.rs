@@ -184,7 +184,7 @@ impl Tracer {
         &self.inner.instance_name
     }
 
-    /// Set the reporter, only 
+    /// Set the reporter, only valid if [`Tracer::reporting`] not started.
     pub fn set_reporter(&self, reporter: impl Reporter + Send + Sync + 'static) {
         if !self.inner.is_reporting.load(Ordering::Relaxed) {
             if let Ok(mut lock) = self.inner.reporter.try_lock() {
