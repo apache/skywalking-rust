@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use super::propagation::context::PropagationContext;
 use crate::{
     context::trace_context::TracingContext,
     reporter::{DynReporter, Reporter},
@@ -57,11 +56,6 @@ pub fn global_tracer() -> &'static Tracer {
 /// Create trace conetxt by global tracer.
 pub fn create_trace_context() -> TracingContext {
     global_tracer().create_trace_context()
-}
-
-/// Create trace conetxt from propagation by global tracer.
-pub fn create_trace_context_from_propagation(context: PropagationContext) -> TracingContext {
-    global_tracer().create_trace_context_from_propagation(context)
 }
 
 /// Start to reporting by global tracer, quit when shutdown_signal received.
@@ -129,7 +123,7 @@ struct Inner {
     instance_name: String,
     segment_sender: Box<dyn SegmentSender>,
     segment_receiver: Box<dyn SegmentReceiver>,
-    reporter: Box<Mutex<DynReporter>>,
+    reporter: Mutex<Box<DynReporter>>,
     is_reporting: AtomicBool,
     is_closed: AtomicBool,
 }
@@ -169,7 +163,7 @@ impl Tracer {
                 instance_name: instance_name.to_string(),
                 segment_sender: Box::new(channel.0),
                 segment_receiver: Box::new(channel.1),
-                reporter: Box::new(Mutex::new(reporter)),
+                reporter: Mutex::new(Box::new(reporter)),
                 is_reporting: Default::default(),
                 is_closed: Default::default(),
             }),
@@ -184,24 +178,20 @@ impl Tracer {
         &self.inner.instance_name
     }
 
+    /// Set the reporter, only valid if [`Tracer::reporting`] not started.
+    pub fn set_reporter(&self, reporter: impl Reporter + Send + Sync + 'static) {
+        if !self.inner.is_reporting.load(Ordering::Relaxed) {
+            if let Ok(mut lock) = self.inner.reporter.try_lock() {
+                *lock = Box::new(reporter);
+            }
+        }
+    }
+
     /// Create trace conetxt.
     pub fn create_trace_context(&self) -> TracingContext {
         TracingContext::new(
             &self.inner.service_name,
             &self.inner.instance_name,
-            self.downgrade(),
-        )
-    }
-
-    /// Create trace conetxt from propagation.
-    pub fn create_trace_context_from_propagation(
-        &self,
-        context: PropagationContext,
-    ) -> TracingContext {
-        TracingContext::from_propagation_context(
-            &self.inner.service_name,
-            &self.inner.instance_name,
-            context,
             self.downgrade(),
         )
     }
@@ -294,7 +284,7 @@ impl Tracer {
     }
 
     async fn report_segment_object(
-        reporter: &Mutex<DynReporter>,
+        reporter: &Mutex<Box<DynReporter>>,
         segments: LinkedList<SegmentObject>,
     ) {
         if let Err(err) = reporter.lock().await.collect(segments).await {
