@@ -14,6 +14,10 @@
 // limitations under the License.
 //
 
+use super::{
+    system_time::{fetch_time, TimePeriod},
+    trace_context::SpanStack,
+};
 use crate::{
     error::LOCK_MSG,
     skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
@@ -21,10 +25,6 @@ use crate::{
 use std::{
     fmt::Formatter,
     sync::{Arc, Weak},
-};
-use super::{
-    system_time::{fetch_time, TimePeriod},
-    trace_context::SpanStack,
 };
 
 /// Span is a concept that represents trace information for a single RPC.
