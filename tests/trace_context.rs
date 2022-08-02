@@ -203,7 +203,8 @@ async fn create_span_from_context() {
     MockReporter::with(
         |reporter| {
             let tracer = Tracer::new("service2", "instance2", reporter);
-            let _context = tracer.create_trace_context_from_propagation(prop);
+            let mut context = tracer.create_trace_context();
+            let _span = context.create_entry_span_with_propagation("operation_name", &prop);
             tracer
         },
         |segment| {
@@ -233,9 +234,9 @@ fn crossprocess_test() {
             let dec_prop = decode_propagation(&enc_prop).unwrap();
 
             let tracer = Tracer::new("service2", "instance2", LogReporter::new());
-            let mut context2 = tracer.create_trace_context_from_propagation(dec_prop);
+            let mut context2 = tracer.create_trace_context();
 
-            let span3 = context2.create_entry_span("op2");
+            let span3 = context2.create_entry_span_with_propagation("op2", &dec_prop);
             drop(span3);
 
             let span3 = context2.last_span().unwrap();

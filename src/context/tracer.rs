@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use super::propagation::context::PropagationContext;
 use crate::{
     context::trace_context::TracingContext,
     reporter::{DynReporter, Reporter},
@@ -57,11 +56,6 @@ pub fn global_tracer() -> &'static Tracer {
 /// Create trace conetxt by global tracer.
 pub fn create_trace_context() -> TracingContext {
     global_tracer().create_trace_context()
-}
-
-/// Create trace conetxt from propagation by global tracer.
-pub fn create_trace_context_from_propagation(context: PropagationContext) -> TracingContext {
-    global_tracer().create_trace_context_from_propagation(context)
 }
 
 /// Start to reporting by global tracer, quit when shutdown_signal received.
@@ -198,19 +192,6 @@ impl Tracer {
         TracingContext::new(
             &self.inner.service_name,
             &self.inner.instance_name,
-            self.downgrade(),
-        )
-    }
-
-    /// Create trace conetxt from propagation.
-    pub fn create_trace_context_from_propagation(
-        &self,
-        context: PropagationContext,
-    ) -> TracingContext {
-        TracingContext::from_propagation_context(
-            &self.inner.service_name,
-            &self.inner.instance_name,
-            context,
             self.downgrade(),
         )
     }

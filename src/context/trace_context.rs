@@ -86,7 +86,6 @@ pub struct TracingContext {
     service_instance: String,
     next_span_id: i32,
     span_stack: Arc<SpanStack>,
-    segment_link: Option<PropagationContext>,
     primary_endpoint_name: String,
     tracer: WeakTracer,
 }
@@ -115,8 +114,7 @@ impl std::fmt::Debug for TracingContext {
 }
 
 impl TracingContext {
-    /// Generate a new trace context. Typically called when no context has
-    /// been propagated and a new trace is to be started.
+    /// Generate a new trace context.
     pub(crate) fn new(
         service_name: impl ToString,
         instance_name: impl ToString,
@@ -129,30 +127,6 @@ impl TracingContext {
             service_instance: instance_name.to_string(),
             next_span_id: Default::default(),
             span_stack: Default::default(),
-            segment_link: None,
-            primary_endpoint_name: Default::default(),
-            tracer,
-        }
-    }
-
-    /// Generate a new trace context using the propagated context.
-    /// They should be propagated on `sw8` header in HTTP request with encoded
-    /// form. You can retrieve decoded context with
-    /// `skywalking::context::propagation::encoder::encode_propagation`
-    pub(crate) fn from_propagation_context(
-        service_name: impl ToString,
-        instance_name: impl ToString,
-        context: PropagationContext,
-        tracer: WeakTracer,
-    ) -> Self {
-        TracingContext {
-            trace_id: context.parent_trace_id.clone(),
-            trace_segment_id: RandomGenerator::generate(),
-            service: service_name.to_string(),
-            service_instance: instance_name.to_string(),
-            next_span_id: Default::default(),
-            span_stack: Default::default(),
-            segment_link: Some(context),
             primary_endpoint_name: Default::default(),
             tracer,
         }
@@ -223,8 +197,11 @@ impl TracingContext {
     /// Create a new entry span, which is an initiator of collection of spans.
     /// This should be called by invocation of the function which is triggered
     /// by external service.
+    ///
+    /// Typically called when no context has
+    /// been propagated and a new trace is to be started.
     pub fn create_entry_span(&mut self, operation_name: &str) -> Span {
-        let mut span = Span::new_obj(
+        let span = Span::new_obj(
             self.inc_next_span_id(),
             self.peek_active_span_id().unwrap_or(-1),
             operation_name.to_string(),
@@ -234,21 +211,36 @@ impl TracingContext {
             false,
         );
 
-        if let Some(segment_link) = &self.segment_link {
+        let index = self.push_active_span(span);
+        Span::new(index, Arc::downgrade(&self.span_stack))
+    }
+
+    /// Create a new entry span, which is an initiator of collection of spans.
+    /// This should be called by invocation of the function which is triggered
+    /// by external service.
+    ///
+    /// They should be propagated on `sw8` header in HTTP request with encoded
+    /// form. You can retrieve decoded context with
+    /// `skywalking::context::propagation::encoder::encode_propagation`
+    pub fn create_entry_span_with_propagation(
+        &mut self,
+        operation_name: &str,
+        propagation: &PropagationContext,
+    ) -> Span {
+        let mut span = self.create_entry_span(operation_name);
+        span.with_span_object_mut(|span| {
             span.refs.push(SegmentReference {
                 ref_type: RefType::CrossProcess as i32,
                 trace_id: self.trace_id().to_owned(),
-                parent_trace_segment_id: segment_link.parent_trace_segment_id.clone(),
-                parent_span_id: segment_link.parent_span_id,
-                parent_service: segment_link.parent_service.clone(),
-                parent_service_instance: segment_link.parent_service_instance.clone(),
-                parent_endpoint: segment_link.destination_endpoint.clone(),
-                network_address_used_at_peer: segment_link.destination_address.clone(),
+                parent_trace_segment_id: propagation.parent_trace_segment_id.clone(),
+                parent_span_id: propagation.parent_span_id,
+                parent_service: propagation.parent_service.clone(),
+                parent_service_instance: propagation.parent_service_instance.clone(),
+                parent_endpoint: propagation.destination_endpoint.clone(),
+                network_address_used_at_peer: propagation.destination_address.clone(),
             });
-        }
-
-        let index = self.push_active_span(span);
-        Span::new(index, Arc::downgrade(&self.span_stack))
+        });
+        span
     }
 
     /// Create a new exit span, which will be created when tracing context will
