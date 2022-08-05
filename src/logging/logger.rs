@@ -13,15 +13,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-#![warn(rust_2018_idioms)]
-#![warn(clippy::dbg_macro, clippy::print_stdout)]
-#![doc = include_str!("../README.md")]
 
-pub mod common;
-pub(crate) mod error;
-pub mod logging;
-pub mod reporter;
-pub mod skywalking_proto;
-pub mod trace;
-
-pub use error::{Error, Result};
+pub struct Logger {}

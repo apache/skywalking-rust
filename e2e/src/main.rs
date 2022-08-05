@@ -21,14 +21,14 @@ use hyper::{
     Body, Client, Method, Request, Response, Server, StatusCode,
 };
 use skywalking::{
-    context::{
+    reporter::grpc::GrpcReporter,
+    trace::{
         propagation::{
             context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY, decoder::decode_propagation,
             encoder::encode_propagation,
         },
         tracer::{self, Tracer},
     },
-    reporter::grpc::GrpcReporter,
 };
 use std::{convert::Infallible, error::Error, future, net::SocketAddr};
 use structopt::StructOpt;

@@ -34,7 +34,7 @@ use std::{
 /// # Example
 ///
 /// ```
-/// use skywalking::context::tracer::Tracer;
+/// use skywalking::trace::tracer::Tracer;
 ///
 /// async fn handle_request(tracer: Tracer) {
 ///     let mut ctx = tracer.create_trace_context();

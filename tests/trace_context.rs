@@ -16,14 +16,14 @@
 
 use prost::Message;
 use skywalking::{
-    context::{
-        propagation::{decoder::decode_propagation, encoder::encode_propagation},
-        tracer::Tracer,
-    },
     reporter::{log::LogReporter, Reporter},
     skywalking_proto::v3::{
         KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
         SpanType,
+    },
+    trace::{
+        propagation::{decoder::decode_propagation, encoder::encode_propagation},
+        tracer::Tracer,
     },
 };
 use std::{

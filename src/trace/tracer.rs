@@ -15,9 +15,9 @@
 //
 
 use crate::{
-    context::trace_context::TracingContext,
     reporter::{DynReporter, Reporter},
     skywalking_proto::v3::SegmentObject,
+    trace::trace_context::TracingContext,
 };
 use std::{
     collections::LinkedList,

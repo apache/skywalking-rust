@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use crate::context::propagation::context::PropagationContext;
+use crate::trace::propagation::context::PropagationContext;
 use base64::decode;
 
 /// Decode context value packed in `sw8` header.

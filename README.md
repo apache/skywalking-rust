@@ -42,8 +42,7 @@ the context after the span finished.
 # Example
 
 ```rust, no_run
-use skywalking::context::tracer::Tracer;
-use skywalking::reporter::grpc::GrpcReporter;
+use skywalking::{reporter::grpc::GrpcReporter, trace::tracer::Tracer};
 use std::error::Error;
 use tokio::signal;
 

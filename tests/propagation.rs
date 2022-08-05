@@ -16,14 +16,14 @@
 
 #![allow(unused_imports)]
 use skywalking::{
-    context::{
+    reporter::log::LogReporter,
+    trace::{
         propagation::{
             context::PropagationContext, decoder::decode_propagation, encoder::encode_propagation,
         },
         trace_context::TracingContext,
         tracer::Tracer,
     },
-    reporter::log::LogReporter,
 };
 use std::sync::Arc;
 
