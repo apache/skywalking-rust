@@ -13,14 +13,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-#![warn(rust_2018_idioms)]
-#![warn(clippy::dbg_macro, clippy::print_stdout)]
-#![doc = include_str!("../README.md")]
 
-pub mod common;
-pub(crate) mod error;
-pub mod logging;
-pub mod skywalking_proto;
-pub mod trace;
+pub mod grpc;
+pub mod log;
 
-pub use error::{Error, Result};
+use crate::skywalking_proto::v3::SegmentObject;
+use std::{collections::LinkedList, error::Error, result::Result};
+use tonic::async_trait;
+
+pub(crate) type DynTraceReporter = dyn TraceReporter + Send + Sync + 'static;
+
+#[async_trait]
+pub trait TraceReporter {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
+}
+
+#[async_trait]
+impl TraceReporter for () {
+    async fn collect(
+        &mut self,
+        _segments: LinkedList<SegmentObject>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+}

@@ -14,26 +14,9 @@
 // limitations under the License.
 //
 
-pub mod grpc;
-pub mod log;
-
-use crate::skywalking_proto::v3::SegmentObject;
-use std::{collections::LinkedList, error::Error, result::Result};
-use tonic::async_trait;
-
-pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
-
-#[async_trait]
-pub trait Reporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
-}
-
-#[async_trait]
-impl Reporter for () {
-    async fn collect(
-        &mut self,
-        _segments: LinkedList<SegmentObject>,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-}
+pub mod propagation;
+pub mod reporter;
+pub mod span;
+pub(crate) mod system_time;
+pub mod trace_context;
+pub mod tracer;

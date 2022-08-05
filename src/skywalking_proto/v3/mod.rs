@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use crate::context::system_time::{fetch_time, TimePeriod};
+use crate::trace::system_time::{fetch_time, TimePeriod};
 
 tonic::include_proto!("skywalking.v3");
 

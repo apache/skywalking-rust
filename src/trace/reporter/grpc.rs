@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use super::Reporter;
+use super::TraceReporter;
 use crate::skywalking_proto::v3::{
     trace_segment_report_service_client::TraceSegmentReportServiceClient, SegmentObject,
 };
@@ -27,11 +27,11 @@ use tonic::{
 
 type ReporterClient = TraceSegmentReportServiceClient<Channel>;
 
-pub struct GrpcReporter {
+pub struct GrpcTraceReporter {
     client: ReporterClient,
 }
 
-impl GrpcReporter {
+impl GrpcTraceReporter {
     pub fn new(channel: Channel) -> Self {
         let client = ReporterClient::new(channel);
         Self { client }
@@ -46,7 +46,7 @@ impl GrpcReporter {
 }
 
 #[async_trait]
-impl Reporter for GrpcReporter {
+impl TraceReporter for GrpcTraceReporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         let stream = stream::iter(segments);
         self.client.collect(stream).await?;

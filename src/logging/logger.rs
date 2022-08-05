@@ -14,21 +14,4 @@
 // limitations under the License.
 //
 
-use crate::context::trace_context::TracingContext;
-use base64::encode;
-
-/// Encode TracingContext to carry current trace info to the destination of RPC
-/// call. In general, the output of this function will be packed in `sw8` header
-/// in HTTP call.
-pub fn encode_propagation(context: &TracingContext, endpoint: &str, address: &str) -> String {
-    format!(
-        "1-{}-{}-{}-{}-{}-{}-{}",
-        encode(context.trace_id()),
-        encode(context.trace_segment_id()),
-        context.peek_active_span_id().unwrap_or(0),
-        encode(context.service()),
-        encode(context.service_instance()),
-        encode(endpoint),
-        encode(address)
-    )
-}
+pub struct Logger {}

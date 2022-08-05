@@ -42,8 +42,7 @@ the context after the span finished.
 # Example
 
 ```rust, no_run
-use skywalking::context::tracer::Tracer;
-use skywalking::reporter::grpc::GrpcReporter;
+use skywalking::trace::{reporter::grpc::GrpcTraceReporter, tracer::Tracer};
 use std::error::Error;
 use tokio::signal;
 
@@ -75,7 +74,7 @@ async fn handle_request(tracer: Tracer) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
+    let reporter = GrpcTraceReporter::connect("http://0.0.0.0:11800").await?;
     let tracer = Tracer::new("service", "instance", reporter);
 
     tokio::spawn(handle_request(tracer.clone()));

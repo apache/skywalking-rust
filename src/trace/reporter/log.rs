@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use super::Reporter;
+use super::TraceReporter;
 use crate::skywalking_proto::v3::SegmentObject;
 use std::{collections::LinkedList, error::Error};
 use tonic::async_trait;
@@ -24,12 +24,12 @@ enum Used {
     Tracing,
 }
 
-pub struct LogReporter {
+pub struct LogTraceReporter {
     tip: String,
     used: Used,
 }
 
-impl LogReporter {
+impl LogTraceReporter {
     #[inline]
     pub fn new() -> Self {
         Default::default()
@@ -51,7 +51,7 @@ impl LogReporter {
     }
 }
 
-impl Default for LogReporter {
+impl Default for LogTraceReporter {
     fn default() -> Self {
         Self {
             tip: "collect".to_string(),
@@ -61,7 +61,7 @@ impl Default for LogReporter {
 }
 
 #[async_trait]
-impl Reporter for LogReporter {
+impl TraceReporter for LogTraceReporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         for segment in segments {
             match self.used {

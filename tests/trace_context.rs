@@ -16,14 +16,14 @@
 
 use prost::Message;
 use skywalking::{
-    context::{
-        propagation::{decoder::decode_propagation, encoder::encode_propagation},
-        tracer::Tracer,
-    },
-    reporter::{log::LogReporter, Reporter},
     skywalking_proto::v3::{
         KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
         SpanType,
+    },
+    trace::{
+        propagation::{decoder::decode_propagation, encoder::encode_propagation},
+        reporter::{log::LogTraceReporter, TraceReporter},
+        tracer::Tracer,
     },
 };
 use std::{
@@ -50,7 +50,7 @@ where
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn create_span() {
-    MockReporter::with(
+    MockTraceReporter::with(
         |reporter| {
             let tracer = Tracer::new("service", "instance", reporter);
             let mut context = tracer.create_trace_context();
@@ -182,7 +182,7 @@ async fn create_span() {
 #[test]
 #[should_panic]
 fn create_local_span_failed() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", LogTraceReporter::new());
     let mut context = tracer.create_trace_context();
     let _span1 = context.create_local_span("op1");
 }
@@ -190,7 +190,7 @@ fn create_local_span_failed() {
 #[test]
 #[should_panic]
 fn create_exit_span_failed() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", LogTraceReporter::new());
     let mut context = tracer.create_trace_context();
     let _span1 = context.create_exit_span("op1", "example.com/test");
 }
@@ -200,7 +200,7 @@ async fn create_span_from_context() {
     let data = "1-MQ==-NQ==-3-bWVzaA==-aW5zdGFuY2U=-L2FwaS92MS9oZWFsdGg=-ZXhhbXBsZS5jb206ODA4MA==";
     let prop = decode_propagation(data).unwrap();
 
-    MockReporter::with(
+    MockTraceReporter::with(
         |reporter| {
             let tracer = Tracer::new("service2", "instance2", reporter);
             let mut context = tracer.create_trace_context();
@@ -220,7 +220,7 @@ async fn create_span_from_context() {
 
 #[test]
 fn crossprocess_test() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", LogTraceReporter::new());
     let mut context1 = tracer.create_trace_context();
     assert_eq!(context1.service(), "service");
     assert_eq!(context1.service_instance(), "instance");
@@ -233,7 +233,7 @@ fn crossprocess_test() {
             let enc_prop = encode_propagation(&context1, "endpoint", "address");
             let dec_prop = decode_propagation(&enc_prop).unwrap();
 
-            let tracer = Tracer::new("service2", "instance2", LogReporter::new());
+            let tracer = Tracer::new("service2", "instance2", LogTraceReporter::new());
             let mut context2 = tracer.create_trace_context();
 
             let span3 = context2.create_entry_span_with_propagation("op2", &dec_prop);
@@ -263,7 +263,7 @@ fn crossprocess_test() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn cross_threads_test() {
-    MockReporter::with_many(
+    MockTraceReporter::with_many(
         |reporter| {
             let tracer = Tracer::new("service", "instance", reporter);
             let mut ctx1 = tracer.create_trace_context();
@@ -309,20 +309,20 @@ async fn cross_threads_test() {
 }
 
 #[derive(Default, Clone)]
-struct MockReporter {
+struct MockTraceReporter {
     segments: Arc<Mutex<LinkedList<SegmentObject>>>,
 }
 
-impl MockReporter {
-    async fn with(f1: impl FnOnce(MockReporter) -> Tracer, f2: impl FnOnce(&SegmentObject)) {
+impl MockTraceReporter {
+    async fn with(f1: impl FnOnce(MockTraceReporter) -> Tracer, f2: impl FnOnce(&SegmentObject)) {
         Self::with_many(f1, |segments| f2(&segments.front().unwrap())).await;
     }
 
     async fn with_many(
-        f1: impl FnOnce(MockReporter) -> Tracer,
+        f1: impl FnOnce(MockTraceReporter) -> Tracer,
         f2: impl FnOnce(&LinkedList<SegmentObject>),
     ) {
-        let reporter = MockReporter::default();
+        let reporter = MockTraceReporter::default();
 
         let tracer = f1(reporter.clone());
 
@@ -334,7 +334,7 @@ impl MockReporter {
 }
 
 #[tonic::async_trait]
-impl Reporter for MockReporter {
+impl TraceReporter for MockTraceReporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
         self.segments.try_lock().unwrap().extend(segments);
         Ok(())

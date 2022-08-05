@@ -21,11 +21,11 @@ use super::{
 };
 use crate::{
     common::random_generator::RandomGenerator,
-    context::propagation::context::PropagationContext,
     error::LOCK_MSG,
     skywalking_proto::v3::{
         RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType,
     },
+    trace::propagation::context::PropagationContext,
 };
 use std::{
     fmt::Formatter,
@@ -35,6 +35,7 @@ use std::{
 
 #[derive(Default)]
 pub(crate) struct SpanStack {
+    // TODO Swith to use `try_rwlock` instead of `RwLock` for better performance.
     pub(crate) finialized: RwLock<Vec<SpanObject>>,
     pub(crate) active: RwLock<Vec<SpanObject>>,
 }
