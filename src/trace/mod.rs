@@ -15,7 +15,6 @@
 //
 
 pub mod propagation;
-pub mod reporter;
 pub mod span;
 pub(crate) mod system_time;
 pub mod trace_context;

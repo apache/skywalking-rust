@@ -15,11 +15,9 @@
 //
 
 use crate::{
+    reporter::{DynReporter, Reporter},
     skywalking_proto::v3::SegmentObject,
-    trace::{
-        reporter::{DynTraceReporter, TraceReporter},
-        trace_context::TracingContext,
-    },
+    trace::trace_context::TracingContext,
 };
 use std::{
     collections::LinkedList,
@@ -125,7 +123,7 @@ struct Inner {
     instance_name: String,
     segment_sender: Box<dyn SegmentSender>,
     segment_receiver: Box<dyn SegmentReceiver>,
-    reporter: Mutex<Box<DynTraceReporter>>,
+    reporter: Mutex<Box<DynReporter>>,
     is_reporting: AtomicBool,
     is_closed: AtomicBool,
 }
@@ -141,7 +139,7 @@ impl Tracer {
     pub fn new(
         service_name: impl ToString,
         instance_name: impl ToString,
-        reporter: impl TraceReporter + Send + Sync + 'static,
+        reporter: impl Reporter + Send + Sync + 'static,
     ) -> Self {
         let (segment_sender, segment_receiver) = mpsc::unbounded_channel();
         Self::new_with_channel(
@@ -156,7 +154,7 @@ impl Tracer {
     pub fn new_with_channel(
         service_name: impl ToString,
         instance_name: impl ToString,
-        reporter: impl TraceReporter + Send + Sync + 'static,
+        reporter: impl Reporter + Send + Sync + 'static,
         channel: (impl SegmentSender, impl SegmentReceiver),
     ) -> Self {
         Self {
@@ -181,7 +179,7 @@ impl Tracer {
     }
 
     /// Set the reporter, only valid if [`Tracer::reporting`] not started.
-    pub fn set_reporter(&self, reporter: impl TraceReporter + Send + Sync + 'static) {
+    pub fn set_reporter(&self, reporter: impl Reporter + Send + Sync + 'static) {
         if !self.inner.is_reporting.load(Ordering::Relaxed) {
             if let Ok(mut lock) = self.inner.reporter.try_lock() {
                 *lock = Box::new(reporter);
@@ -286,7 +284,7 @@ impl Tracer {
     }
 
     async fn report_segment_object(
-        reporter: &Mutex<Box<DynTraceReporter>>,
+        reporter: &Mutex<Box<DynReporter>>,
         segments: LinkedList<SegmentObject>,
     ) {
         if let Err(err) = reporter.lock().await.collect(segments).await {

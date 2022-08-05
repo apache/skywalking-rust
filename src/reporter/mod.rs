@@ -21,15 +21,15 @@ use crate::skywalking_proto::v3::SegmentObject;
 use std::{collections::LinkedList, error::Error, result::Result};
 use tonic::async_trait;
 
-pub(crate) type DynTraceReporter = dyn TraceReporter + Send + Sync + 'static;
+pub(crate) type DynReporter = dyn Reporter + Send + Sync + 'static;
 
 #[async_trait]
-pub trait TraceReporter {
+pub trait Reporter {
     async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>>;
 }
 
 #[async_trait]
-impl TraceReporter for () {
+impl Reporter for () {
     async fn collect(
         &mut self,
         _segments: LinkedList<SegmentObject>,

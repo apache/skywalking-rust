@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 //
-use skywalking::trace::{reporter::grpc::GrpcTraceReporter, tracer::Tracer};
+
+use skywalking::{reporter::grpc::GrpcReporter, trace::tracer::Tracer};
 use std::error::Error;
 use tokio::signal;
 
@@ -47,7 +48,7 @@ async fn handle_request(tracer: Tracer) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let reporter = GrpcTraceReporter::connect("http://0.0.0.0:11800").await?;
+    let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
     let tracer = Tracer::new("service", "instance", reporter);
 
     tokio::spawn(handle_request(tracer.clone()));

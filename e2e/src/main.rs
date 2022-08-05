@@ -20,13 +20,15 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Body, Client, Method, Request, Response, Server, StatusCode,
 };
-use skywalking::trace::{
-    propagation::{
-        context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY, decoder::decode_propagation,
-        encoder::encode_propagation,
+use skywalking::{
+    reporter::grpc::GrpcReporter,
+    trace::{
+        propagation::{
+            context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY, decoder::decode_propagation,
+            encoder::encode_propagation,
+        },
+        tracer::{self, Tracer},
     },
-    reporter::grpc::GrpcTraceReporter,
-    tracer::{self, Tracer},
 };
 use std::{convert::Infallible, error::Error, future, net::SocketAddr};
 use structopt::StructOpt;
@@ -151,7 +153,7 @@ struct Opt {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    let reporter = GrpcTraceReporter::connect("http://collector:19876").await?;
+    let reporter = GrpcReporter::connect("http://collector:19876").await?;
 
     let handle = if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter));
