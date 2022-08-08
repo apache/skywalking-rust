@@ -49,16 +49,18 @@ async fn handle_request(tracer: Tracer) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
-    let tracer = Tracer::new("service", "instance", reporter);
-
-    tokio::spawn(handle_request(tracer.clone()));
-
-    // Start to report.
-    tracer
-        .reporting(async move {
-            let _ = signal::ctrl_c().await.unwrap();
+    let handle = reporter
+        .reporting()
+        .await
+        .with_graceful_shutdown(async move {
+            signal::ctrl_c().await.expect("failed to listen for event");
         })
-        .await?;
+        .spawn();
+
+    let tracer = Tracer::new("service", "instance", reporter);
+    handle_request(tracer).await;
+
+    handle.await?;
 
     Ok(())
 }

@@ -14,13 +14,11 @@
 // limitations under the License.
 //
 
-use super::{
-    system_time::{fetch_time, TimePeriod},
-    trace_context::SpanStack,
-};
 use crate::{
+    common::system_time::{fetch_time, TimePeriod},
     error::LOCK_MSG,
     skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
+    trace::trace_context::SpanStack,
 };
 use std::{
     fmt::Formatter,

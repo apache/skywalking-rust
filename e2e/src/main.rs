@@ -30,7 +30,7 @@ use skywalking::{
         tracer::{self, Tracer},
     },
 };
-use std::{convert::Infallible, error::Error, future, net::SocketAddr};
+use std::{convert::Infallible, error::Error, net::SocketAddr};
 use structopt::StructOpt;
 
 static NOT_FOUND_MSG: &str = "not found";
@@ -154,15 +154,14 @@ struct Opt {
 async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
     let reporter = GrpcReporter::connect("http://collector:19876").await?;
+    let handle = reporter.reporting().await.spawn();
 
     let handle = if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter));
-        let handle = tracer::reporting(future::pending());
         run_consumer_service([0, 0, 0, 0]).await;
         handle
     } else if opt.mode == "producer" {
         tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter));
-        let handle = tracer::reporting(future::pending());
         run_producer_service([0, 0, 0, 0]).await;
         handle
     } else {
