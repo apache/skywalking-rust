@@ -108,9 +108,12 @@ struct Inner<P, C> {
     is_closed: AtomicBool,
 }
 
+pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
+
 #[derive(Clone)]
 pub struct GrpcReporter<P, C> {
     inner: Arc<Inner<P, C>>,
+    err_handle: Arc<Option<Box<DynErrHandle>>>,
 }
 
 impl GrpcReporter<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
@@ -139,7 +142,16 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
                 is_reporting: Default::default(),
                 is_closed: Default::default(),
             }),
+            err_handle: Default::default(),
         }
+    }
+
+    pub fn with_err_handle(
+        mut self,
+        handle: impl Fn(Box<dyn Error>) + Send + Sync + 'static,
+    ) -> Self {
+        self.err_handle = Arc::new(Some(Box::new(handle)));
+        self
     }
 
     /// Start to reporting, quit when shutdown_signal received.
@@ -156,9 +168,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
 
         Reporting {
             rb: ReporterAndBuffer {
-                reporter: GrpcReporter {
-                    inner: Arc::clone(&self.inner),
-                },
+                inner: Arc::clone(&self.inner),
                 trace_buffer: Default::default(),
                 log_buffer: Default::default(),
                 status_handle: None,
@@ -172,13 +182,17 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
 impl<P: CollectItemProduce, C: ColletcItemConsume> Report for GrpcReporter<P, C> {
     fn report(&self, item: CollectItem) {
         if !self.inner.is_closed.load(Ordering::Relaxed) {
-            let _ = self.inner.producer.produce(item);
+            if let Err(e) = self.inner.producer.produce(item) {
+                if let Some(handle) = self.err_handle.as_deref() {
+                    handle(e);
+                }
+            }
         }
     }
 }
 
 struct ReporterAndBuffer<P, C> {
-    reporter: GrpcReporter<P, C>,
+    inner: Arc<Inner<P, C>>,
     trace_buffer: LinkedList<SegmentObject>,
     log_buffer: LinkedList<LogData>,
     status_handle: Option<Box<dyn Fn(tonic::Status) + Send + 'static>>,
@@ -199,7 +213,6 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
         if !self.trace_buffer.is_empty() {
             let buffer = take(&mut self.trace_buffer);
             if let Err(e) = self
-                .reporter
                 .inner
                 .trace_client
                 .lock()
@@ -215,7 +228,6 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
         if !self.log_buffer.is_empty() {
             let buffer = take(&mut self.log_buffer);
             if let Err(e) = self
-                .reporter
                 .inner
                 .log_client
                 .lock()
@@ -231,7 +243,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
     }
 }
 
-/// Created by [Tracer::reporting].
+/// Created by [GrpcReporter::reporting].
 pub struct Reporting<P, C> {
     rb: ReporterAndBuffer<P, C>,
     consumer: C,
@@ -258,7 +270,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
         }
     }
 
-    async fn start(self) -> crate::Result<()> {
+    pub async fn start(self) -> crate::Result<()> {
         let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
         let Reporting {
             mut rb,
@@ -282,7 +294,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
                 }
             }
 
-            rb.reporter.inner.is_closed.store(true, Ordering::Relaxed);
+            rb.inner.is_closed.store(true, Ordering::Relaxed);
 
             // Flush.
             loop {
@@ -300,7 +312,9 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
 
         let shutdown_fut = async move {
             shutdown_signal.await;
-            let _ = shutdown_tx.send(());
+            shutdown_tx
+                .send(())
+                .map_err(|e| crate::Error::Other(Box::new(e)))?;
             Ok(())
         };
 

@@ -19,6 +19,7 @@ pub mod once_cell;
 pub mod print;
 
 use crate::skywalking_proto::v3::{LogData, SegmentObject};
+use std::{ops::Deref, sync::Arc};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -37,4 +38,16 @@ pub trait Report {
 /// Noop reporter.
 impl Report for () {
     fn report(&self, _item: CollectItem) {}
+}
+
+impl<T: Report> Report for Box<T> {
+    fn report(&self, item: CollectItem) {
+        Report::report(self.deref(), item)
+    }
+}
+
+impl<T: Report> Report for Arc<T> {
+    fn report(&self, item: CollectItem) {
+        Report::report(self.deref(), item)
+    }
 }

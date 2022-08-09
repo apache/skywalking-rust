@@ -15,7 +15,7 @@
 //
 
 use super::record::LogRecord;
-use crate::reporter::{DynReport, Report};
+use crate::reporter::{CollectItem, DynReport, Report};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -68,5 +68,11 @@ impl Logger {
         &self.inner.instance_name
     }
 
-    pub fn log(&self, record: LogRecord) {}
+    pub fn log(&self, record: LogRecord) {
+        let data = record.convert_to_log_data(
+            self.service_name().to_owned(),
+            self.instance_name().to_owned(),
+        );
+        self.inner.reporter.report(CollectItem::Log(data));
+    }
 }

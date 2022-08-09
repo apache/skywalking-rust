@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-#![allow(unused_imports)]
 use skywalking::{
     reporter::print::PrintReporter,
     trace::{

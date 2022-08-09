@@ -27,8 +27,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::logger::Logger;
-
 pub enum RecordType {
     Text,
     Json,
@@ -114,7 +112,11 @@ impl LogRecord {
         self
     }
 
-    pub(crate) fn convert_to_log_data(self, logger: &Logger) -> LogData {
+    pub(crate) fn convert_to_log_data(
+        self,
+        service_name: String,
+        instance_name: String,
+    ) -> LogData {
         let timestamp = if self.is_ignore_time {
             0
         } else {
@@ -147,8 +149,8 @@ impl LogRecord {
 
         LogData {
             timestamp,
-            service: logger.service_name().to_owned(),
-            service_instance: logger.instance_name().to_owned(),
+            service: service_name,
+            service_instance: instance_name,
             endpoint: self.endpoint,
             body: Some(LogDataBody {
                 r#type: "".to_owned(),

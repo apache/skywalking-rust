@@ -48,7 +48,11 @@ async fn handle_request(tracer: Tracer) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
+
+    // Spawn the reporting in background, with listening the graceful shutdown
+    // signal.
     let handle = reporter
         .reporting()
         .await
@@ -57,9 +61,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .spawn();
 
+    // Do tracing.
     let tracer = Tracer::new("service", "instance", reporter);
     handle_request(tracer).await;
 
+    // Wait the reporting to quit.
     handle.await?;
 
     Ok(())
