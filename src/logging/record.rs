@@ -22,10 +22,7 @@ use crate::{
     },
     trace::{span::Span, trace_context::TracingContext},
 };
-use std::{
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub enum RecordType {
     Text,
@@ -44,7 +41,7 @@ pub struct LogRecord {
     time: Option<SystemTime>,
     is_ignore_time: bool,
     endpoint: String,
-    tags: HashMap<String, String>,
+    tags: Vec<(String, String)>,
     trace_id: Option<String>,
     trace_segment_id: Option<String>,
     span_id: Option<i32>,
@@ -74,7 +71,7 @@ impl LogRecord {
     }
 
     pub fn add_tag(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.tags.insert(key.to_string(), value.to_string());
+        self.tags.push((key.to_string(), value.to_string()));
         self
     }
 
