@@ -295,7 +295,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
                                 rb.report(item).await;
                             }
                             Ok(None) => break,
-                            Err(err) => Err(crate::Error::Other(err))?,
+                            Err(err) => return Err(crate::Error::Other(err)),
                         }
                     }
                     _ =  shutdown_rx.recv() => break,
