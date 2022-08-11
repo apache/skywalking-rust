@@ -110,7 +110,6 @@ struct Inner<P, C> {
 
 pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
 
-#[derive(Clone)]
 pub struct GrpcReporter<P, C> {
     inner: Arc<Inner<P, C>>,
     err_handle: Arc<Option<Box<DynErrHandle>>>,
@@ -175,6 +174,15 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
             },
             shutdown_signal: Box::pin(pending()),
             consumer: self.inner.consumer.lock().await.take().unwrap(),
+        }
+    }
+}
+
+impl<P, C> Clone for GrpcReporter<P, C> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            err_handle: self.err_handle.clone(),
         }
     }
 }

@@ -33,6 +33,11 @@ pub fn global_logger() -> &'static Logger {
     GLOBAL_LOGGER.get().expect("global logger haven't setted")
 }
 
+/// Log by global logger.
+pub fn log(record: LogRecord) {
+    global_logger().log(record);
+}
+
 pub struct Inner {
     service_name: String,
     instance_name: String,

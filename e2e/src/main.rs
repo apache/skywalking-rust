@@ -21,6 +21,10 @@ use hyper::{
     Body, Client, Method, Request, Response, Server, StatusCode,
 };
 use skywalking::{
+    logging::{
+        logger::{self, Logger},
+        record::{LogRecord, RecordType},
+    },
     reporter::grpc::GrpcReporter,
     trace::{
         propagation::{
@@ -40,10 +44,18 @@ async fn handle_ping(
     _req: Request<Body>,
     client: Client<HttpConnector>,
 ) -> Result<Response<Body>, Infallible> {
+    logger::log(
+        LogRecord::new()
+            .add_tag("level", "DEBUG")
+            .endpoint("/ping")
+            .record_type(RecordType::Json)
+            .content(r#"{"message": "handle ping"}"#),
+    );
+
     let mut context = tracer::create_trace_context();
     let _span = context.create_entry_span("/ping");
     {
-        let _span2 = context.create_exit_span("/pong", "consumer:8082");
+        let span2 = context.create_exit_span("/pong", "consumer:8082");
         let header = encode_propagation(&context, "/pong", "consumer:8082");
         let req = Request::builder()
             .method(Method::GET)
@@ -52,6 +64,15 @@ async fn handle_ping(
             .body(Body::from(""))
             .unwrap();
 
+        logger::log(
+            LogRecord::new()
+                .add_tag("level", "INFO")
+                .endpoint("/ping")
+                .with_tracing_context(&context)
+                .with_span(&span2)
+                .record_type(RecordType::Text)
+                .content("do http request"),
+        );
         client.request(req).await.unwrap();
     }
     {
@@ -106,6 +127,14 @@ async fn run_producer_service(host: [u8; 4]) {
 }
 
 async fn handle_pong(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    logger::log(
+        LogRecord::new()
+            .add_tag("level", "DEBUG")
+            .endpoint("/pong")
+            .record_type(RecordType::Json)
+            .content(r#"{"message": "handle pong"}"#),
+    );
+
     let ctx = decode_propagation(
         _req.headers()[SKYWALKING_HTTP_CONTEXT_HEADER_KEY]
             .to_str()
@@ -156,17 +185,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let reporter = GrpcReporter::connect("http://collector:19876").await?;
     let handle = reporter.reporting().await.spawn();
 
-    let handle = if opt.mode == "consumer" {
-        tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter));
+    if opt.mode == "consumer" {
+        tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter.clone()));
+        logger::set_global_logger(Logger::new("consumer", "node_0", reporter));
         run_consumer_service([0, 0, 0, 0]).await;
-        handle
     } else if opt.mode == "producer" {
-        tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter));
+        tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter.clone()));
+        logger::set_global_logger(Logger::new("producer", "node_0", reporter));
         run_producer_service([0, 0, 0, 0]).await;
-        handle
     } else {
         unreachable!()
-    };
+    }
 
     handle.await?;
 

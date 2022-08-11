@@ -17,14 +17,10 @@
 use skywalking::{
     reporter::print::PrintReporter,
     trace::{
-        propagation::{
-            context::PropagationContext, decoder::decode_propagation, encoder::encode_propagation,
-        },
-        trace_context::TracingContext,
+        propagation::{decoder::decode_propagation, encoder::encode_propagation},
         tracer::Tracer,
     },
 };
-use std::sync::Arc;
 
 #[test]
 fn basic() {
