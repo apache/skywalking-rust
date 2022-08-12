@@ -20,13 +20,12 @@ use skywalking::{
     logging::{logger::Logger, record::LogRecord},
     reporter::grpc::GrpcReporter,
 };
-use std::{error::Error, future, sync::Arc};
+use std::{error::Error, future};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
-    let reporter = Arc::new(reporter);
 
     // Do logging.
     let logger = Logger::new("service", "instance", reporter.clone());
