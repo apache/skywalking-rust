@@ -15,29 +15,11 @@
 //
 
 use crate::{
-    reporter::{DynReporter, Reporter},
-    skywalking_proto::v3::SegmentObject,
+    reporter::{CollectItem, DynReport, Report},
     trace::trace_context::TracingContext,
 };
-use std::{
-    collections::LinkedList,
-    error::Error,
-    future::Future,
-    pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Weak,
-    },
-    task::{Context, Poll},
-};
-use tokio::{
-    sync::{
-        mpsc::{self},
-        Mutex, OnceCell,
-    },
-    task::JoinHandle,
-};
-use tonic::async_trait;
+use std::sync::{Arc, Weak};
+use tokio::sync::OnceCell;
 
 static GLOBAL_TRACER: OnceCell<Tracer> = OnceCell::const_new();
 
@@ -58,74 +40,10 @@ pub fn create_trace_context() -> TracingContext {
     global_tracer().create_trace_context()
 }
 
-/// Start to reporting by global tracer, quit when shutdown_signal received.
-///
-/// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-pub fn reporting(shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static) -> Reporting {
-    global_tracer().reporting(shutdown_signal)
-}
-
-pub trait SegmentSender: Send + Sync + 'static {
-    fn send(&self, segment: SegmentObject) -> Result<(), Box<dyn Error>>;
-}
-
-impl SegmentSender for () {
-    fn send(&self, _segment: SegmentObject) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-}
-
-impl SegmentSender for mpsc::UnboundedSender<SegmentObject> {
-    fn send(&self, segment: SegmentObject) -> Result<(), Box<dyn Error>> {
-        Ok(self.send(segment)?)
-    }
-}
-
-#[async_trait]
-pub trait SegmentReceiver: Send + Sync + 'static {
-    async fn recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>>;
-
-    async fn try_recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>>;
-}
-
-#[async_trait]
-impl SegmentReceiver for () {
-    async fn recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>> {
-        Ok(None)
-    }
-
-    async fn try_recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>> {
-        Ok(None)
-    }
-}
-
-#[async_trait]
-impl SegmentReceiver for Mutex<mpsc::UnboundedReceiver<SegmentObject>> {
-    async fn recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>> {
-        Ok(self.lock().await.recv().await)
-    }
-
-    async fn try_recv(&self) -> Result<Option<SegmentObject>, Box<dyn Error + Send>> {
-        use mpsc::error::TryRecvError;
-
-        match self.lock().await.try_recv() {
-            Ok(segment) => Ok(Some(segment)),
-            Err(e) => match e {
-                TryRecvError::Empty => Ok(None),
-                TryRecvError::Disconnected => Err(Box::new(e)),
-            },
-        }
-    }
-}
-
 struct Inner {
     service_name: String,
     instance_name: String,
-    segment_sender: Box<dyn SegmentSender>,
-    segment_receiver: Box<dyn SegmentReceiver>,
-    reporter: Mutex<Box<DynReporter>>,
-    is_reporting: AtomicBool,
-    is_closed: AtomicBool,
+    reporter: Box<DynReport>,
 }
 
 /// Skywalking tracer.
@@ -139,33 +57,13 @@ impl Tracer {
     pub fn new(
         service_name: impl ToString,
         instance_name: impl ToString,
-        reporter: impl Reporter + Send + Sync + 'static,
-    ) -> Self {
-        let (segment_sender, segment_receiver) = mpsc::unbounded_channel();
-        Self::new_with_channel(
-            service_name,
-            instance_name,
-            reporter,
-            (segment_sender, Mutex::new(segment_receiver)),
-        )
-    }
-
-    /// New with service info, reporter, and custom channel.
-    pub fn new_with_channel(
-        service_name: impl ToString,
-        instance_name: impl ToString,
-        reporter: impl Reporter + Send + Sync + 'static,
-        channel: (impl SegmentSender, impl SegmentReceiver),
+        reporter: impl Report + Send + Sync + 'static,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 service_name: service_name.to_string(),
                 instance_name: instance_name.to_string(),
-                segment_sender: Box::new(channel.0),
-                segment_receiver: Box::new(channel.1),
-                reporter: Mutex::new(Box::new(reporter)),
-                is_reporting: Default::default(),
-                is_closed: Default::default(),
+                reporter: Box::new(reporter),
             }),
         }
     }
@@ -176,15 +74,6 @@ impl Tracer {
 
     pub fn instance_name(&self) -> &str {
         &self.inner.instance_name
-    }
-
-    /// Set the reporter, only valid if [`Tracer::reporting`] not started.
-    pub fn set_reporter(&self, reporter: impl Reporter + Send + Sync + 'static) {
-        if !self.inner.is_reporting.load(Ordering::Relaxed) {
-            if let Ok(mut lock) = self.inner.reporter.try_lock() {
-                *lock = Box::new(reporter);
-            }
-        }
     }
 
     /// Create trace conetxt.
@@ -198,98 +87,10 @@ impl Tracer {
 
     /// Finalize the trace context.
     pub(crate) fn finalize_context(&self, context: &mut TracingContext) {
-        if self.inner.is_closed.load(Ordering::Relaxed) {
-            tracing::warn!("tracer closed");
-            return;
-        }
-
-        let segment_object = context.convert_segment_object();
-        if let Err(err) = self.inner.segment_sender.send(segment_object) {
-            tracing::error!(?err, "send segment object failed");
-        }
-    }
-
-    /// Start to reporting, quit when shutdown_signal received.
-    ///
-    /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-    ///
-    /// # Panics
-    ///
-    /// Panic if call more than once.
-    pub fn reporting(
-        &self,
-        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> Reporting {
-        if self.inner.is_reporting.swap(true, Ordering::Relaxed) {
-            panic!("reporting already called");
-        }
-
-        Reporting {
-            handle: tokio::spawn(self.clone().do_reporting(shutdown_signal)),
-        }
-    }
-
-    async fn do_reporting(
-        self,
-        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> crate::Result<()> {
-        let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
-
-        let handle = tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    segment = self.inner.segment_receiver.recv() => {
-                        match segment {
-                            Ok(Some(segment)) => {
-                                // TODO Implement batch collect in future.
-                                let mut segments = LinkedList::new();
-                                segments.push_back(segment);
-                                Self::report_segment_object(&self.inner.reporter, segments).await;
-                            }
-                            Ok(None) => break,
-                            Err(err) => return Err(err.into()),
-                        }
-                    }
-                    _ =  shutdown_rx.recv() => break,
-                }
-            }
-
-            self.inner.is_closed.store(true, Ordering::Relaxed);
-
-            // Flush.
-            let mut segments = LinkedList::new();
-            loop {
-                match self.inner.segment_receiver.try_recv().await {
-                    Ok(Some(segment)) => {
-                        segments.push_back(segment);
-                    }
-                    Ok(None) => break,
-                    Err(err) => return Err(err.into()),
-                }
-            }
-            Self::report_segment_object(&self.inner.reporter, segments).await;
-
-            Ok::<_, crate::Error>(())
-        });
-
-        shutdown_signal.await;
-
-        if shutdown_tx.send(()).is_err() {
-            tracing::error!("shutdown signal send failed");
-        }
-
-        handle.await??;
-
-        Ok(())
-    }
-
-    async fn report_segment_object(
-        reporter: &Mutex<Box<DynReporter>>,
-        segments: LinkedList<SegmentObject>,
-    ) {
-        if let Err(err) = reporter.lock().await.collect(segments).await {
-            tracing::error!(?err, "collect failed");
-        }
+        let segment_object = context.convert_to_segment_object();
+        self.inner
+            .reporter
+            .report(CollectItem::Trace(segment_object));
     }
 
     fn downgrade(&self) -> WeakTracer {
@@ -310,31 +111,11 @@ impl WeakTracer {
     }
 }
 
-/// Created by [Tracer::reporting].
-pub struct Reporting {
-    handle: JoinHandle<crate::Result<()>>,
-}
-
-impl Future for Reporting {
-    type Output = crate::Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.handle).poll(cx).map(|r| r?)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future;
 
     trait AssertSend: Send {}
 
     impl AssertSend for Tracer {}
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn custom_channel() {
-        let tracer = Tracer::new_with_channel("service_name", "instance_name", (), ((), ()));
-        tracer.reporting(future::ready(())).await.unwrap();
-    }
 }

@@ -14,40 +14,25 @@
 // limitations under the License.
 //
 
-pub mod grpc;
-pub mod once_cell;
-pub mod print;
+use crate::reporter::{CollectItem, Report};
+use tokio::sync::OnceCell;
 
-use crate::skywalking_proto::v3::{LogData, SegmentObject};
-use std::{ops::Deref, sync::Arc};
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum CollectItem {
-    Trace(SegmentObject),
-    Log(LogData),
+#[derive(Clone, Default)]
+pub struct OnceCellReporter<R: Report> {
+    report: OnceCell<R>,
 }
 
-pub(crate) type DynReport = dyn Report + Send + Sync + 'static;
-
-/// Report provide non-blocking report method for trace, log and metric object.
-pub trait Report {
-    fn report(&self, item: CollectItem);
-}
-
-/// Noop reporter.
-impl Report for () {
-    fn report(&self, _item: CollectItem) {}
-}
-
-impl<T: Report> Report for Box<T> {
-    fn report(&self, item: CollectItem) {
-        Report::report(self.deref(), item)
+impl<R: Report> OnceCellReporter<R> {
+    pub fn set(&self, report: R) -> Option<()> {
+        self.report.set(report).ok()
     }
 }
 
-impl<T: Report> Report for Arc<T> {
+impl<R: Report> Report for OnceCellReporter<R> {
     fn report(&self, item: CollectItem) {
-        Report::report(self.deref(), item)
+        self.report
+            .get()
+            .expect("Report hasn't setted")
+            .report(item)
     }
 }

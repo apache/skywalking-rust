@@ -16,7 +16,7 @@
 
 use prost::Message;
 use skywalking::{
-    reporter::{log::LogReporter, Reporter},
+    reporter::{print::PrintReporter, CollectItem, Report},
     skywalking_proto::v3::{
         KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
         SpanType,
@@ -28,8 +28,6 @@ use skywalking::{
 };
 use std::{
     collections::LinkedList,
-    error::Error,
-    future,
     sync::{Arc, Mutex},
     thread,
 };
@@ -182,7 +180,7 @@ async fn create_span() {
 #[test]
 #[should_panic]
 fn create_local_span_failed() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", PrintReporter::new());
     let mut context = tracer.create_trace_context();
     let _span1 = context.create_local_span("op1");
 }
@@ -190,7 +188,7 @@ fn create_local_span_failed() {
 #[test]
 #[should_panic]
 fn create_exit_span_failed() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", PrintReporter::new());
     let mut context = tracer.create_trace_context();
     let _span1 = context.create_exit_span("op1", "example.com/test");
 }
@@ -220,7 +218,7 @@ async fn create_span_from_context() {
 
 #[test]
 fn crossprocess_test() {
-    let tracer = Tracer::new("service", "instance", LogReporter::new());
+    let tracer = Tracer::new("service", "instance", PrintReporter::new());
     let mut context1 = tracer.create_trace_context();
     assert_eq!(context1.service(), "service");
     assert_eq!(context1.service_instance(), "instance");
@@ -233,7 +231,7 @@ fn crossprocess_test() {
             let enc_prop = encode_propagation(&context1, "endpoint", "address");
             let dec_prop = decode_propagation(&enc_prop).unwrap();
 
-            let tracer = Tracer::new("service2", "instance2", LogReporter::new());
+            let tracer = Tracer::new("service2", "instance2", PrintReporter::new());
             let mut context2 = tracer.create_trace_context();
 
             let span3 = context2.create_entry_span_with_propagation("op2", &dec_prop);
@@ -323,20 +321,18 @@ impl MockReporter {
         f2: impl FnOnce(&LinkedList<SegmentObject>),
     ) {
         let reporter = MockReporter::default();
-
-        let tracer = f1(reporter.clone());
-
-        tracer.reporting(future::ready(())).await.unwrap();
-
+        f1(reporter.clone());
         let segments = reporter.segments.try_lock().unwrap();
         f2(&*segments);
     }
 }
 
-#[tonic::async_trait]
-impl Reporter for MockReporter {
-    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> Result<(), Box<dyn Error>> {
-        self.segments.try_lock().unwrap().extend(segments);
-        Ok(())
+impl Report for MockReporter {
+    fn report(&self, item: CollectItem) {
+        let segment = match item {
+            CollectItem::Trace(segment) => segment,
+            _ => unreachable!(),
+        };
+        self.segments.try_lock().unwrap().push_back(segment);
     }
 }

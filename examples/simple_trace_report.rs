@@ -48,17 +48,25 @@ async fn handle_request(tracer: Tracer) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
-    let tracer = Tracer::new("service", "instance", reporter);
 
-    tokio::spawn(handle_request(tracer.clone()));
-
-    // Start to report.
-    tracer
-        .reporting(async move {
-            let _ = signal::ctrl_c().await.unwrap();
+    // Spawn the reporting in background, with listening the graceful shutdown
+    // signal.
+    let handle = reporter
+        .reporting()
+        .await
+        .with_graceful_shutdown(async move {
+            signal::ctrl_c().await.expect("failed to listen for event");
         })
-        .await?;
+        .spawn();
+
+    // Do tracing.
+    let tracer = Tracer::new("service", "instance", reporter);
+    handle_request(tracer).await;
+
+    // Wait the reporting to quit.
+    handle.await?;
 
     Ok(())
 }

@@ -16,7 +16,9 @@ and core concepts to keep best compatibility and performance.
 
 All concepts are from the official SkyWalking definitions.
 
-## Span
+## Tracing
+
+### Span
 
 Span is an important and common concept in distributed tracing system. Learn Span from Google Dapper Paper. For better
 performance, we extend the span into 3 kinds.
@@ -34,19 +36,29 @@ Tag and Log are similar attributes of the span.
 - Log is heavier than tag, with one timestamp and multiple key:value pairs. Log represents an event, typically an error
   happens.
 
-## TracingContext
+### TracingContext
 
 TracingContext is the context of the tracing process. Span should only be created through context, and be archived into
 the context after the span finished.
 
+## Logging
+
+### LogRecord
+
+LogRecord is the simple builder for the LogData, which is the Log format of Skywalking.
+
 # Example
 
 ```rust, no_run
-use skywalking::{reporter::grpc::GrpcReporter, trace::tracer::Tracer};
+use skywalking::{
+    logging::{logger::Logger, record::{LogRecord, RecordType}},
+    reporter::grpc::GrpcReporter,
+    trace::tracer::Tracer,
+};
 use std::error::Error;
 use tokio::signal;
 
-async fn handle_request(tracer: Tracer) {
+async fn handle_request(tracer: Tracer, logger: Logger) {
     let mut ctx = tracer.create_trace_context();
 
     {
@@ -59,9 +71,19 @@ async fn handle_request(tracer: Tracer) {
 
         {
             // Generates an Exit Span when executing an RPC.
-            let _span2 = ctx.create_exit_span("op2", "remote_peer");
+            let span2 = ctx.create_exit_span("op2", "remote_peer");
 
             // Something...
+
+            // Do logging.
+            logger.log(
+                LogRecord::new()
+                    .add_tag("level", "INFO")
+                    .with_tracing_context(&ctx)
+                    .with_span(&span2)
+                    .record_type(RecordType::Text)
+                    .content("Something...")
+            );
 
             // Auto close span2 when dropped.
         }
@@ -74,17 +96,24 @@ async fn handle_request(tracer: Tracer) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
-    let tracer = Tracer::new("service", "instance", reporter);
 
-    tokio::spawn(handle_request(tracer.clone()));
-
-    // Start to report.
-    tracer
-        .reporting(async move {
-            let _ = signal::ctrl_c().await.unwrap();
+    // Spawn the reporting in background, with listening the graceful shutdown signal.
+    let handle = reporter
+        .reporting()
+        .await
+        .with_graceful_shutdown(async move {
+            signal::ctrl_c().await.expect("failed to listen for event");
         })
-        .await?;
+        .spawn();
+
+    let tracer = Tracer::new("service", "instance", reporter.clone());
+    let logger = Logger::new("service", "instance", reporter);
+
+    handle_request(tracer, logger).await;
+
+    handle.await?;
 
     Ok(())
 }

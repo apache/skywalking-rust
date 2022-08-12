@@ -16,7 +16,7 @@
 # under the License.
 #
 segmentItems:
-- segmentSize: gt 1
+- segmentSize: ge 2
   segments:
   - segmentId: not null
     spans:
@@ -76,7 +76,7 @@ segmentItems:
       spanType: Entry
       startTime: gt 0
   serviceName: producer
-- segmentSize: 1
+- segmentSize: ge 1
   segments:
   - segmentId: not null
     spans:
@@ -100,4 +100,49 @@ segmentItems:
       spanLayer: Http
       spanType: Entry
       startTime: gt 0
+  serviceName: consumer
+
+logItems:
+- logSize: ge 2
+  logs:
+  - body:
+      content:
+        json: '{"message": "handle ping"}'
+      type: ''
+    endpoint: /ping
+    layer: ''
+    tags:
+      data:
+      - key: level
+        value: DEBUG
+    timestamp: gt 0
+  - body:
+      content:
+        text: do http request
+      type: ''
+    endpoint: /ping
+    layer: ''
+    tags:
+      data:
+      - key: level
+        value: INFO
+    timestamp: gt 0
+    traceContext:
+      spanId: 1
+      traceId: not null
+      traceSegmentId: not null
+  serviceName: producer
+- logSize: ge 1
+  logs:
+  - body:
+      content:
+        json: '{"message": "handle pong"}'
+      type: ''
+    endpoint: /pong
+    layer: ''
+    tags:
+      data:
+      - key: level
+        value: DEBUG
+    timestamp: gt 0
   serviceName: consumer

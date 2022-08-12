@@ -62,6 +62,10 @@ tokio-stream = { version = "0.1.8", features = ["net"] }
 name = "trace_context"
 required-features = ["mock"]
 
+[[test]]
+name = "logging"
+required-features = ["mock"]
+
 [[example]]
 name = "simple_trace_report"
 path = "examples/simple_trace_report.rs"

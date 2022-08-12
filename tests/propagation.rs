@@ -14,18 +14,13 @@
 // limitations under the License.
 //
 
-#![allow(unused_imports)]
 use skywalking::{
-    reporter::log::LogReporter,
+    reporter::print::PrintReporter,
     trace::{
-        propagation::{
-            context::PropagationContext, decoder::decode_propagation, encoder::encode_propagation,
-        },
-        trace_context::TracingContext,
+        propagation::{decoder::decode_propagation, encoder::encode_propagation},
         tracer::Tracer,
     },
 };
-use std::sync::Arc;
 
 #[test]
 fn basic() {
@@ -68,7 +63,7 @@ fn invalid_sample() {
 
 #[test]
 fn basic_encode() {
-    let tracer = Tracer::new("mesh", "instance", LogReporter::new());
+    let tracer = Tracer::new("mesh", "instance", PrintReporter::new());
     let tc = tracer.create_trace_context();
     let res = encode_propagation(&tc, "/api/v1/health", "example.com:8080");
     let res2 = decode_propagation(&res).unwrap();

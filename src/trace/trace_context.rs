@@ -14,18 +14,20 @@
 // limitations under the License.
 //
 
-use super::{
-    span::Span,
-    system_time::{fetch_time, TimePeriod},
-    tracer::{Tracer, WeakTracer},
-};
 use crate::{
-    common::random_generator::RandomGenerator,
+    common::{
+        random_generator::RandomGenerator,
+        system_time::{fetch_time, TimePeriod},
+    },
     error::LOCK_MSG,
     skywalking_proto::v3::{
         RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType,
     },
-    trace::propagation::context::PropagationContext,
+    trace::{
+        propagation::context::PropagationContext,
+        span::Span,
+        tracer::{Tracer, WeakTracer},
+    },
 };
 use std::{
     fmt::Formatter,
@@ -332,7 +334,7 @@ impl TracingContext {
     /// This conversion should be done before sending segments into OAP.
     ///
     /// Notice: The spans will taked, so this method shouldn't be called twice.
-    pub(crate) fn convert_segment_object(&mut self) -> SegmentObject {
+    pub(crate) fn convert_to_segment_object(&mut self) -> SegmentObject {
         let trace_id = self.trace_id().to_owned();
         let trace_segment_id = self.trace_segment_id().to_owned();
         let service = self.service().to_owned();
