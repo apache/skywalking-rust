@@ -16,8 +16,7 @@
 # under the License.
 #
 FROM rust:1.57
-RUN apt-get update && apt-get install -y cmake protobuf-compiler
-RUN apt-cache madison protobuf-compiler
+RUN apt-get update && apt-get install -y cmake protobuf-compiler=3.12.4-1
 WORKDIR /build
 COPY . /build/
 RUN cargo build --release --workspace
