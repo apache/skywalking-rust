@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 use crate::common::system_time::{fetch_time, TimePeriod};
 
 tonic::include_proto!("skywalking.v3");

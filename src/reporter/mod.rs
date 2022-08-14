@@ -15,13 +15,12 @@
 //
 
 pub mod grpc;
-pub mod once_cell;
 pub mod print;
 
-use serde::{Serialize, Deserialize};
-use tokio::sync::OnceCell;
 use crate::skywalking_proto::v3::{LogData, SegmentObject};
+use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
+use tokio::sync::OnceCell;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
