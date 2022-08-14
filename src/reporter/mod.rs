@@ -15,13 +15,14 @@
 //
 
 pub mod grpc;
-pub mod once_cell;
 pub mod print;
 
 use crate::skywalking_proto::v3::{LogData, SegmentObject};
+use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
+use tokio::sync::OnceCell;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum CollectItem {
     Trace(SegmentObject),
@@ -49,5 +50,11 @@ impl<T: Report> Report for Box<T> {
 impl<T: Report> Report for Arc<T> {
     fn report(&self, item: CollectItem) {
         Report::report(self.deref(), item)
+    }
+}
+
+impl<T: Report> Report for OnceCell<T> {
+    fn report(&self, item: CollectItem) {
+        Report::report(self.get().expect("OnceCell is empty"), item)
     }
 }
