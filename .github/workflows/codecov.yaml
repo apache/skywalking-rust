@@ -25,13 +25,13 @@ on:
       - 'v*'
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: true
       - name: Install protoc
-        run: sudo apt-get install -y protobuf-compiler
+        run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal

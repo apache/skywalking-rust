@@ -37,14 +37,14 @@ jobs:
     - fmt
     - check-and-test
     - doc
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
 
   license-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -59,7 +59,7 @@ jobs:
           config: .github/licenserc.yaml
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -76,15 +76,13 @@ jobs:
         features:
           - ""
           - "--all-features"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
       - name: Install protoc
-        uses: arduino/setup-protoc@v1.1.2
-        with:
-          version: '3.12.4'
+        run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
       - name: Install Rust toolchain
         run: rustup toolchain install stable --component clippy
       - name: Run check
@@ -95,13 +93,13 @@ jobs:
         run: cargo test --workspace --release ${{ matrix.features }}
 
   doc:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
       - name: Install protoc
-        run: sudo apt-get install -y protobuf-compiler
+        run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
       - name: Install Rust toolchain
         run: rustup toolchain install stable
       - name: Run docs
