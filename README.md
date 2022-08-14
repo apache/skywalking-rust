@@ -131,6 +131,40 @@ Using `cargo build` generates a library. If you'd like to verify the behavior, w
 use `cargo run --example simple_trace_report`
 which outputs executable, then run it.
 
+## NOTICE
+
+This crate automatically generates protobuf related code, which requires `protoc` before compile.
+
+Please choose one of the ways to install `protoc`.
+
+1. Using your OS package manager.
+
+   For Debian-base system:
+
+   ```shell
+   sudo apt install protobuf-compiler
+   ```
+
+   For MacOS:
+
+   ```shell
+   brew install protobuf
+   ```
+
+2. Auto compile `protoc` in the crate build script, just by adding the feature `vendored` in the `Cargo.toml`:
+
+   ```shell
+   cargo add skywalking --features vendored
+   ```
+
+3. Build from [source](https://github.com/protocolbuffers/protobuf). If `protc` isn't install inside $PATH, the env value `PROTOC` should be set.
+
+   ```shell
+   PROTOC=/the/path/of/protoc
+   ```
+
+For details, please refer to [prost-build:sourcing-protoc](https://docs.rs/prost-build/latest/prost_build/index.html#sourcing-protoc).
+
 # Release
 
 The SkyWalking committer(PMC included) could follow [this doc](Release-guide.md) to release an official version.

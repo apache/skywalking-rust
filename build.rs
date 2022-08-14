@@ -15,6 +15,9 @@
 //
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "vendored")]
+    std::env::set_var("PROTOC", protobuf_src::protoc());
+
     tonic_build::configure()
         .build_server(false)
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
