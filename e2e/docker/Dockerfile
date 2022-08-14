@@ -17,6 +17,7 @@
 #
 FROM rust:1.57
 RUN apt-get update && apt-get install -y cmake protobuf-compiler
+RUN apt-cache madison protobuf-compiler
 WORKDIR /build
 COPY . /build/
 RUN cargo build --release --workspace
