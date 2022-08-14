@@ -33,7 +33,7 @@ jobs:
         with:
           submodules: recursive
       - name: Install protoc
-        run: which protoc
+        run: sudo apt-get install -y protobuf-compiler
       - name: Prepare service container
         run: docker-compose -f docker-compose.e2e.yml up --build -d
       - name: Run e2e
