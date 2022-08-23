@@ -15,14 +15,10 @@
 //
 
 use skywalking::{
-    metrics::{
-        meter::{Meter},
-        record::MeterRecord,
-    },
+    metrics::{meter::Meter, record::MeterRecord},
     reporter::{CollectItem, Report},
     skywalking_proto::v3::{
-        meter_data::Metric, Label, 
-         MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
+        meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
     },
 };
 use std::{
