@@ -17,7 +17,7 @@
 pub mod grpc;
 pub mod print;
 
-use crate::skywalking_proto::v3::{LogData, SegmentObject};
+use crate::skywalking_proto::v3::{LogData, MeterData, SegmentObject};
 use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
 use tokio::sync::OnceCell;
@@ -27,6 +27,7 @@ use tokio::sync::OnceCell;
 pub enum CollectItem {
     Trace(SegmentObject),
     Log(LogData),
+    Meter(MeterData),
 }
 
 pub(crate) type DynReport = dyn Report + Send + Sync + 'static;

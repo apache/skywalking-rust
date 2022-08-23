@@ -18,7 +18,8 @@ use crate::{
     reporter::{CollectItem, Report},
     skywalking_proto::v3::{
         log_report_service_client::LogReportServiceClient,
-        trace_segment_report_service_client::TraceSegmentReportServiceClient, LogData,
+        meter_report_service_client::MeterReportServiceClient,
+        trace_segment_report_service_client::TraceSegmentReportServiceClient, LogData, MeterData,
         SegmentObject,
     },
 };
@@ -102,6 +103,7 @@ impl ColletcItemConsume for mpsc::UnboundedReceiver<CollectItem> {
 struct Inner<P, C> {
     trace_client: Mutex<TraceSegmentReportServiceClient<Channel>>,
     log_client: Mutex<LogReportServiceClient<Channel>>,
+    meter_client: Mutex<MeterReportServiceClient<Channel>>,
     producer: P,
     consumer: Mutex<Option<C>>,
     is_reporting: AtomicBool,
@@ -135,7 +137,8 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
         Self {
             inner: Arc::new(Inner {
                 trace_client: Mutex::new(TraceSegmentReportServiceClient::new(channel.clone())),
-                log_client: Mutex::new(LogReportServiceClient::new(channel)),
+                log_client: Mutex::new(LogReportServiceClient::new(channel.clone())),
+                meter_client: Mutex::new(MeterReportServiceClient::new(channel)),
                 producer,
                 consumer: Mutex::new(Some(consumer)),
                 is_reporting: Default::default(),
@@ -168,9 +171,10 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
         Reporting {
             rb: ReporterAndBuffer {
                 inner: Arc::clone(&self.inner),
+                status_handle: None,
                 trace_buffer: Default::default(),
                 log_buffer: Default::default(),
-                status_handle: None,
+                meter_buffer: Default::default(),
             },
             shutdown_signal: Box::pin(pending()),
             consumer: self.inner.consumer.lock().await.take().unwrap(),
@@ -201,9 +205,10 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Report for GrpcReporter<P, C>
 
 struct ReporterAndBuffer<P, C> {
     inner: Arc<Inner<P, C>>,
+    status_handle: Option<Box<dyn Fn(tonic::Status) + Send + 'static>>,
     trace_buffer: LinkedList<SegmentObject>,
     log_buffer: LinkedList<LogData>,
-    status_handle: Option<Box<dyn Fn(tonic::Status) + Send + 'static>>,
+    meter_buffer: LinkedList<MeterData>,
 }
 
 impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
@@ -215,6 +220,9 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
             }
             CollectItem::Log(item) => {
                 self.log_buffer.push_back(item);
+            }
+            CollectItem::Meter(item) => {
+                self.meter_buffer.push_back(item);
             }
         }
 
@@ -238,6 +246,22 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
             if let Err(e) = self
                 .inner
                 .log_client
+                .lock()
+                .await
+                .collect(stream::iter(buffer))
+                .await
+            {
+                if let Some(status_handle) = &self.status_handle {
+                    status_handle(e);
+                }
+            }
+        }
+
+        if !self.meter_buffer.is_empty() {
+            let buffer = take(&mut self.meter_buffer);
+            if let Err(e) = self
+                .inner
+                .meter_client
                 .lock()
                 .await
                 .collect(stream::iter(buffer))

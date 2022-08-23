@@ -24,6 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(
             &[
                 "./skywalking-data-collect-protocol/language-agent/Tracing.proto",
+                "./skywalking-data-collect-protocol/language-agent/Meter.proto",
                 "./skywalking-data-collect-protocol/logging/Logging.proto",
             ],
             &["./skywalking-data-collect-protocol"],

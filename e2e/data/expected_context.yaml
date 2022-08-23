@@ -146,3 +146,33 @@ logItems:
         value: DEBUG
     timestamp: gt 0
   serviceName: consumer
+
+meterItems:
+- serviceName: consumer
+  meterSize: 3
+  meters:
+  - meterId:
+      name: instance_trace_count
+      tags:
+      - name: region
+        value: us-west
+      - name: az
+        value: az-1
+    singleValue: 100.0
+  - meterId:
+      name: instance_trace_count
+      tags:
+      - name: region
+        value: us-east
+      - name: az
+        value: az-3
+    singleValue: 20.0
+  - meterId:
+      name: instance_trace_count
+      tags:
+      - name: region
+        value: us-north
+      - name: az
+        value: az-1
+    histogramBuckets: [33.0, 55.0]
+    histogramValues: [33, 55]

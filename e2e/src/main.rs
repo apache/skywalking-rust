@@ -25,6 +25,10 @@ use skywalking::{
         logger::{self, Logger},
         record::{LogRecord, RecordType},
     },
+    metrics::{
+        meter::{self, Meter},
+        record::MeterRecord,
+    },
     reporter::grpc::GrpcReporter,
     trace::{
         propagation::{
@@ -34,8 +38,9 @@ use skywalking::{
         tracer::{self, Tracer},
     },
 };
-use std::{convert::Infallible, error::Error, net::SocketAddr};
+use std::{convert::Infallible, error::Error, net::SocketAddr, time::Duration};
 use structopt::StructOpt;
+use tokio::time::sleep;
 
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
@@ -161,6 +166,8 @@ async fn consumer_response(_req: Request<Body>) -> Result<Response<Body>, Infall
 }
 
 async fn run_consumer_service(host: [u8; 4]) {
+    run_consumer_metric().await;
+
     let make_svc =
         make_service_fn(|_| async { Ok::<_, Infallible>(service_fn(consumer_response)) });
     let addr = SocketAddr::from((host, 8082));
@@ -170,6 +177,40 @@ async fn run_consumer_service(host: [u8; 4]) {
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
+}
+
+async fn run_consumer_metric() {
+    meter::metric(
+        MeterRecord::new()
+            .single_value()
+            .name("instance_trace_count")
+            .add_label("region", "us-west")
+            .add_label("az", "az-1")
+            .value(100.),
+    );
+
+    sleep(Duration::from_millis(10)).await;
+
+    meter::metric(
+        MeterRecord::new()
+            .single_value()
+            .name("instance_trace_count")
+            .add_label("region", "us-east")
+            .add_label("az", "az-3")
+            .value(20.),
+    );
+
+    sleep(Duration::from_millis(10)).await;
+
+    meter::metric(
+        MeterRecord::new()
+            .histogram()
+            .name("instance_trace_count")
+            .add_label("region", "us-north")
+            .add_label("az", "az-1")
+            .add_value(33., 33, false)
+            .add_value(55., 55, true),
+    );
 }
 
 #[derive(StructOpt)]
@@ -187,7 +228,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter.clone()));
-        logger::set_global_logger(Logger::new("consumer", "node_0", reporter));
+        logger::set_global_logger(Logger::new("consumer", "node_0", reporter.clone()));
+        meter::set_global_meter(Meter::new("consumer", "node_0", reporter));
         run_consumer_service([0, 0, 0, 0]).await;
     } else if opt.mode == "producer" {
         tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter.clone()));

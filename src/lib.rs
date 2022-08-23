@@ -20,6 +20,7 @@
 pub mod common;
 pub(crate) mod error;
 pub mod logging;
+pub mod metrics;
 pub mod reporter;
 pub mod skywalking_proto;
 pub mod trace;

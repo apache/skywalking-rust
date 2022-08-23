@@ -47,6 +47,12 @@ the context after the span finished.
 
 LogRecord is the simple builder for the LogData, which is the Log format of Skywalking.
 
+## Metrics
+
+### MeterRecord
+
+MeterRecord is the simple builder for the MeterData, which is the metrics format of Skywalking.
+
 # Example
 
 ```rust, no_run
@@ -167,7 +173,7 @@ For details, please refer to [prost-build:sourcing-protoc](https://docs.rs/prost
 
 # Release
 
-The SkyWalking committer(PMC included) could follow [this doc](Release-guide.md) to release an official version.
+The SkyWalking committer(PMC included) could follow [this doc](https://github.com/apache/skywalking-rust/blob/master/Release-guide.md) to release an official version.
 
 # License
 
