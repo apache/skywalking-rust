@@ -22,8 +22,8 @@ use tokio::sync::OnceCell;
 static GLOBAL_LOGGER: OnceCell<Logger> = OnceCell::const_new();
 
 /// Set the global logger.
-pub fn set_global_logger(tracer: Logger) {
-    if GLOBAL_LOGGER.set(tracer).is_err() {
+pub fn set_global_logger(logger: Logger) {
+    if GLOBAL_LOGGER.set(logger).is_err() {
         panic!("global logger has setted")
     }
 }

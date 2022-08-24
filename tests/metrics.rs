@@ -15,7 +15,10 @@
 //
 
 use skywalking::{
-    metrics::{meter::Meter, record::MeterRecord},
+    metrics::{
+        meter::{Counter, Gauge, Histogram},
+        metricer::Metricer,
+    },
     reporter::{CollectItem, Report},
     skywalking_proto::v3::{
         meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
@@ -30,46 +33,16 @@ use std::{
 #[test]
 fn metrics() {
     let reporter = Arc::new(MockReporter::default());
-    let meter = Meter::new("service_name", "instance_name", reporter.clone());
 
     {
-        meter.metric(MeterRecord::new());
-        assert_eq!(
-            reporter.pop(),
-            MeterData {
-                timestamp: 10,
-                service: "service_name".to_owned(),
-                service_instance: "instance_name".to_owned(),
-                metric: None,
-            }
-        );
-    }
-
-    {
-        meter.metric(
-            MeterRecord::new()
-                .custome_time(SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000)),
-        );
-        assert_eq!(
-            reporter.pop(),
-            MeterData {
-                timestamp: 1_000_000_000,
-                service: "service_name".to_owned(),
-                service_instance: "instance_name".to_owned(),
-                metric: None,
-            }
-        );
-    }
-
-    {
-        meter.metric(
-            MeterRecord::new()
-                .single_value()
-                .name("instance_trace_count")
+        let mut metricer = Metricer::new("service_name", "instance_name", reporter.clone());
+        let counter = metricer.register(
+            Counter::new("instance_trace_count")
                 .add_label("region", "us-west")
-                .add_labels([("az", "az-1")])
-                .value(100.),
+                .add_labels([("az", "az-1")]),
         );
+        counter.increment(100.);
+        let handle = metricer.boot();
         assert_eq!(
             reporter.pop(),
             MeterData {
@@ -92,18 +65,53 @@ fn metrics() {
                 })),
             }
         );
+        handle.abort();
     }
 
     {
-        meter.metric(
-            MeterRecord::new()
-                .histogram()
-                .name("instance_trace_count")
+        let mut metricer = Metricer::new("service_name", "instance_name", reporter.clone());
+        metricer.register(
+            Gauge::new("instance_trace_count", || 100.)
                 .add_label("region", "us-west")
-                .add_labels([("az", "az-1")])
-                .add_value(1., 100, false)
-                .add_value(2., 200, true),
+                .add_labels([("az", "az-1")]),
         );
+        let handle = metricer.boot();
+        assert_eq!(
+            reporter.pop(),
+            MeterData {
+                timestamp: 10,
+                service: "service_name".to_owned(),
+                service_instance: "instance_name".to_owned(),
+                metric: Some(Metric::SingleValue(MeterSingleValue {
+                    name: "instance_trace_count".to_owned(),
+                    labels: vec![
+                        Label {
+                            name: "region".to_owned(),
+                            value: "us-west".to_owned()
+                        },
+                        Label {
+                            name: "az".to_owned(),
+                            value: "az-1".to_owned()
+                        },
+                    ],
+                    value: 100.
+                })),
+            }
+        );
+        handle.abort();
+    }
+
+    {
+        let mut metricer = Metricer::new("service_name", "instance_name", reporter.clone());
+        let histogram = metricer.register(
+            Histogram::new("instance_trace_count", vec![1., 2.])
+                .add_label("region", "us-west")
+                .add_labels([("az", "az-1")]),
+        );
+        histogram.add_value(1.);
+        histogram.add_value(1.5);
+        histogram.add_value(2.);
+        let handle = metricer.boot();
         assert_eq!(
             reporter.pop(),
             MeterData {
@@ -125,18 +133,19 @@ fn metrics() {
                     values: vec![
                         MeterBucketValue {
                             bucket: 1.,
-                            count: 100,
+                            count: 2,
                             is_negative_infinity: false
                         },
                         MeterBucketValue {
                             bucket: 2.,
-                            count: 200,
-                            is_negative_infinity: true
+                            count: 1,
+                            is_negative_infinity: false
                         },
                     ]
                 })),
             }
         );
+        handle.abort();
     }
 }
 

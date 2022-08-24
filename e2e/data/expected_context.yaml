@@ -158,7 +158,7 @@ meterItems:
         value: us-west
       - name: az
         value: az-1
-    singleValue: 100.0
+    singleValue: 30.0
   - meterId:
       name: instance_trace_count
       tags:
@@ -174,5 +174,5 @@ meterItems:
         value: us-north
       - name: az
         value: az-1
-    histogramBuckets: [33.0, 55.0]
-    histogramValues: [33, 55]
+    histogramBuckets: [10.0, 20.0, 30.0]
+    histogramValues: [1, 2, 0]

@@ -26,8 +26,8 @@ use skywalking::{
         record::{LogRecord, RecordType},
     },
     metrics::{
-        meter::{self, Meter},
-        record::MeterRecord,
+        meter::{Counter, Gauge, Histogram},
+        metricer::{self, Metricer},
     },
     reporter::grpc::GrpcReporter,
     trace::{
@@ -38,7 +38,10 @@ use skywalking::{
         tracer::{self, Tracer},
     },
 };
-use std::{convert::Infallible, error::Error, net::SocketAddr, time::Duration};
+use std::{
+    collections::HashSet, convert::Infallible, error::Error, net::SocketAddr, sync::Arc,
+    time::Duration,
+};
 use structopt::StructOpt;
 use tokio::time::sleep;
 
@@ -166,8 +169,6 @@ async fn consumer_response(_req: Request<Body>) -> Result<Response<Body>, Infall
 }
 
 async fn run_consumer_service(host: [u8; 4]) {
-    run_consumer_metric().await;
-
     let make_svc =
         make_service_fn(|_| async { Ok::<_, Infallible>(service_fn(consumer_response)) });
     let addr = SocketAddr::from((host, 8082));
@@ -179,38 +180,31 @@ async fn run_consumer_service(host: [u8; 4]) {
     }
 }
 
-async fn run_consumer_metric() {
-    meter::metric(
-        MeterRecord::new()
-            .single_value()
-            .name("instance_trace_count")
+fn run_consumer_metric(mut metricer: Metricer) {
+    let counter = metricer.register(
+        Counter::new("instance_trace_count")
             .add_label("region", "us-west")
-            .add_label("az", "az-1")
-            .value(100.),
+            .add_label("az", "az-1"),
     );
-
-    sleep(Duration::from_millis(10)).await;
-
-    meter::metric(
-        MeterRecord::new()
-            .single_value()
-            .name("instance_trace_count")
+    metricer.register(
+        Gauge::new("instance_trace_count", || 20.)
             .add_label("region", "us-east")
-            .add_label("az", "az-3")
-            .value(20.),
+            .add_label("az", "az-3"),
     );
-
-    sleep(Duration::from_millis(10)).await;
-
-    meter::metric(
-        MeterRecord::new()
-            .histogram()
-            .name("instance_trace_count")
+    let histogram = metricer.register(
+        Histogram::new("instance_trace_count", vec![10., 20., 30.])
             .add_label("region", "us-north")
-            .add_label("az", "az-1")
-            .add_value(33., 33, false)
-            .add_value(55., 55, true),
+            .add_label("az", "az-1"),
     );
+
+    counter.increment(10.);
+    counter.increment(20.);
+
+    histogram.add_value(10.);
+    histogram.add_value(29.);
+    histogram.add_value(20.);
+
+    metricer.boot();
 }
 
 #[derive(StructOpt)]
@@ -229,7 +223,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter.clone()));
         logger::set_global_logger(Logger::new("consumer", "node_0", reporter.clone()));
-        meter::set_global_meter(Meter::new("consumer", "node_0", reporter));
+        run_consumer_metric(Metricer::new("consumer", "node_0", reporter));
         run_consumer_service([0, 0, 0, 0]).await;
     } else if opt.mode == "producer" {
         tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter.clone()));

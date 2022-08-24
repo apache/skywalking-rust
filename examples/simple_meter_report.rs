@@ -17,35 +17,39 @@
 //
 
 use skywalking::{
-    metrics::{meter::Meter, record::MeterRecord},
+    metrics::{meter::Counter, metricer::Metricer},
     reporter::grpc::GrpcReporter,
 };
 use std::{error::Error, future};
+use tokio::signal;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
 
-    // Do metrics.
-    let meter = Meter::new("service", "instance", reporter.clone());
-    meter.metric(
-        MeterRecord::new()
-            .single_value()
-            .name("instance_trace_count")
-            .add_label("region", "us-west")
-            .add_label("az", "az-1")
-            .value(100.),
-    );
-
-    // Start reporting and quit immediately when have completed the existing
-    // collection.
-    reporter
+    // Spawn the reporting in background, with listening the graceful shutdown
+    // signal.
+    let handle = reporter
         .reporting()
         .await
-        .with_graceful_shutdown(future::ready(()))
-        .start()
-        .await?;
+        .with_graceful_shutdown(async move {
+            signal::ctrl_c().await.expect("failed to listen for event");
+        })
+        .spawn();
+
+    // Do metrics.
+    let mut metricer = Metricer::new("service", "instance", reporter.clone());
+    let counter = metricer.register(
+        Counter::new("instance_trace_count")
+            .add_label("region", "us-west")
+            .add_label("az", "az-1"),
+    );
+
+    counter.increment(1.);
+
+    metricer.boot().await;
+    handle.await;
 
     Ok(())
 }
