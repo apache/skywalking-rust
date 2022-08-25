@@ -14,32 +14,5 @@
 // limitations under the License.
 //
 
-use cfg_if::cfg_if;
-
-pub(crate) enum TimePeriod {
-    Start,
-    Log,
-    Metric,
-    End,
-}
-
-cfg_if! {
-    if #[cfg(feature = "mock")] {
-        pub(crate) fn fetch_time(period: TimePeriod) -> i64 {
-            match period {
-                TimePeriod::Start => 1,
-                TimePeriod::Log => 10,
-                TimePeriod::Metric => 10,
-                TimePeriod::End => 100,
-            }
-        }
-    } else {
-        pub(crate) fn fetch_time(_period: TimePeriod) -> i64 {
-            use std::time::{SystemTime, UNIX_EPOCH};
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|dur| dur.as_millis() as i64)
-                .unwrap_or_default()
-        }
-    }
-}
+pub mod meter;
+pub mod metricer;

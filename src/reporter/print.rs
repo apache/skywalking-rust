@@ -36,11 +36,11 @@ impl PrintReporter {
 impl Report for PrintReporter {
     fn report(&self, items: CollectItem) {
         match items {
-            CollectItem::Trace(segment) => {
+            CollectItem::Trace(data) => {
                 if self.use_stderr {
-                    eprintln!("trace segment={:?}", segment);
+                    eprintln!("trace segment={:?}", data);
                 } else {
-                    println!("trace segment={:?}", segment);
+                    println!("trace segment={:?}", data);
                 }
             }
             CollectItem::Log(data) => {
@@ -48,6 +48,13 @@ impl Report for PrintReporter {
                     eprintln!("log data={:?}", data);
                 } else {
                     println!("log data={:?}", data);
+                }
+            }
+            CollectItem::Meter(data) => {
+                if self.use_stderr {
+                    eprintln!("meter data={:?}", data);
+                } else {
+                    println!("meter data={:?}", data);
                 }
             }
         }

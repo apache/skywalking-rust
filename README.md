@@ -47,6 +47,14 @@ the context after the span finished.
 
 LogRecord is the simple builder for the LogData, which is the Log format of Skywalking.
 
+## Metrics
+
+### Meter
+
+- **Counter** API represents a single monotonically increasing counter which automatically collects data and reports to the backend.
+- **Gauge** API represents a single numerical value.
+- **Histogram** API represents a summary sample observations with customized buckets.
+
 # Example
 
 ```rust, no_run
@@ -54,6 +62,7 @@ use skywalking::{
     logging::{logger::Logger, record::{LogRecord, RecordType}},
     reporter::grpc::GrpcReporter,
     trace::tracer::Tracer,
+    metrics::{meter::Counter, metricer::Metricer},
 };
 use std::error::Error;
 use tokio::signal;
@@ -94,6 +103,18 @@ async fn handle_request(tracer: Tracer, logger: Logger) {
     // Auto report ctx when dropped.
 }
 
+async fn handle_metric(mut metricer: Metricer) {
+    let counter = metricer.register(
+        Counter::new("instance_trace_count")
+            .add_label("region", "us-west")
+            .add_label("az", "az-1"),
+    );
+
+    metricer.boot().await;
+
+    counter.increment(10.);
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Connect to skywalking oap server.
@@ -109,7 +130,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .spawn();
 
     let tracer = Tracer::new("service", "instance", reporter.clone());
-    let logger = Logger::new("service", "instance", reporter);
+    let logger = Logger::new("service", "instance", reporter.clone());
+    let metricer = Metricer::new("service", "instance", reporter);
+
+    handle_metric(metricer).await;
 
     handle_request(tracer, logger).await;
 
@@ -167,7 +191,7 @@ For details, please refer to [prost-build:sourcing-protoc](https://docs.rs/prost
 
 # Release
 
-The SkyWalking committer(PMC included) could follow [this doc](Release-guide.md) to release an official version.
+The SkyWalking committer(PMC included) could follow [this doc](https://github.com/apache/skywalking-rust/blob/master/Release-guide.md) to release an official version.
 
 # License
 

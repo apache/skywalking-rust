@@ -55,16 +55,19 @@ impl LogRecord {
         Default::default()
     }
 
+    #[inline]
     pub fn custome_time(mut self, time: SystemTime) -> Self {
         self.time = Some(time);
         self
     }
 
+    #[inline]
     pub fn ignore_time(mut self) -> Self {
         self.is_ignore_time = true;
         self
     }
 
+    #[inline]
     pub fn endpoint(mut self, endpoint: impl ToString) -> Self {
         self.endpoint = endpoint.to_string();
         self

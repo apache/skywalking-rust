@@ -25,6 +25,10 @@ use skywalking::{
         logger::{self, Logger},
         record::{LogRecord, RecordType},
     },
+    metrics::{
+        meter::{Counter, Gauge, Histogram},
+        metricer::Metricer,
+    },
     reporter::grpc::GrpcReporter,
     trace::{
         propagation::{
@@ -172,6 +176,33 @@ async fn run_consumer_service(host: [u8; 4]) {
     }
 }
 
+fn run_consumer_metric(mut metricer: Metricer) {
+    let counter = metricer.register(
+        Counter::new("instance_trace_count")
+            .add_label("region", "us-west")
+            .add_label("az", "az-1"),
+    );
+    metricer.register(
+        Gauge::new("instance_trace_count", || 20.)
+            .add_label("region", "us-east")
+            .add_label("az", "az-3"),
+    );
+    let histogram = metricer.register(
+        Histogram::new("instance_trace_count", vec![10., 20., 30.])
+            .add_label("region", "us-north")
+            .add_label("az", "az-1"),
+    );
+
+    counter.increment(10.);
+    counter.increment(20.);
+
+    histogram.add_value(10.);
+    histogram.add_value(29.);
+    histogram.add_value(20.);
+
+    metricer.boot();
+}
+
 #[derive(StructOpt)]
 #[structopt(name = "basic")]
 struct Opt {
@@ -187,7 +218,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter.clone()));
-        logger::set_global_logger(Logger::new("consumer", "node_0", reporter));
+        logger::set_global_logger(Logger::new("consumer", "node_0", reporter.clone()));
+        run_consumer_metric(Metricer::new("consumer", "node_0", reporter));
         run_consumer_service([0, 0, 0, 0]).await;
     } else if opt.mode == "producer" {
         tracer::set_global_tracer(Tracer::new("producer", "node_0", reporter.clone()));
