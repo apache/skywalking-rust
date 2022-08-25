@@ -27,7 +27,7 @@ use skywalking::{
     },
     metrics::{
         meter::{Counter, Gauge, Histogram},
-        metricer::{self, Metricer},
+        metricer::Metricer,
     },
     reporter::grpc::GrpcReporter,
     trace::{
@@ -38,12 +38,8 @@ use skywalking::{
         tracer::{self, Tracer},
     },
 };
-use std::{
-    collections::HashSet, convert::Infallible, error::Error, net::SocketAddr, sync::Arc,
-    time::Duration,
-};
+use std::{convert::Infallible, error::Error, net::SocketAddr};
 use structopt::StructOpt;
-use tokio::time::sleep;
 
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";

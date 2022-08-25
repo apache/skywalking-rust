@@ -15,16 +15,19 @@
 //
 
 use super::meter::{MeterId, Transform};
-use crate::{
-    reporter::{CollectItem, DynReport, Report},
-    skywalking_proto::v3::MeterData,
+use crate::reporter::{CollectItem, DynReport, Report};
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
 };
-use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
-    runtime::Handle,
-    spawn,
-    sync::{Mutex, OnceCell},
-    task::{block_in_place, spawn_blocking, spawn_local, JoinHandle},
+    select, spawn,
+    sync::mpsc,
+    task::{spawn_blocking, JoinError, JoinHandle},
     time::interval,
 };
 
@@ -71,25 +74,52 @@ impl Metricer {
         transform
     }
 
-    // TODO Shutdownable.
-    pub fn boot(self) -> JoinHandle<()> {
-        spawn(async move {
+    pub fn boot(self) -> Booting {
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
+
+        let handle = spawn(async move {
             let mut ticker = interval(self.report_interval);
             let metricer = Arc::new(self);
             loop {
                 let metricer_ = metricer.clone();
                 let _ = spawn_blocking(move || {
-                    for (_, trans) in &metricer_.meter_map {
+                    for trans in metricer_.meter_map.values() {
                         metricer_
                             .reporter
                             .report(CollectItem::Meter(trans.transform(&metricer_)));
                     }
                 })
                 .await;
-                ticker.tick().await;
+
+                select! {
+                    _ = ticker.tick() => {}
+                    _ = shutdown_rx.recv() => { return; }
+                }
             }
-        })
+        });
+        Booting {
+            handle,
+            shutdown_tx,
+        }
     }
 }
 
-pub struct Booting {}
+pub struct Booting {
+    handle: JoinHandle<()>,
+    shutdown_tx: mpsc::Sender<()>,
+}
+
+impl Booting {
+    pub async fn shutdown(self) -> crate::Result<()> {
+        self.shutdown_tx.send(()).await.unwrap();
+        Ok(self.await?)
+    }
+}
+
+impl Future for Booting {
+    type Output = Result<(), JoinError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.handle).poll(cx)
+    }
+}

@@ -27,11 +27,10 @@ use skywalking::{
 use std::{
     collections::LinkedList,
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
 };
 
-#[test]
-fn metrics() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn metrics() {
     let reporter = Arc::new(MockReporter::default());
 
     {
@@ -42,7 +41,9 @@ fn metrics() {
                 .add_labels([("az", "az-1")]),
         );
         counter.increment(100.);
-        let handle = metricer.boot();
+
+        metricer.boot().shutdown().await.unwrap();
+
         assert_eq!(
             reporter.pop(),
             MeterData {
@@ -65,7 +66,6 @@ fn metrics() {
                 })),
             }
         );
-        handle.abort();
     }
 
     {
@@ -75,7 +75,9 @@ fn metrics() {
                 .add_label("region", "us-west")
                 .add_labels([("az", "az-1")]),
         );
-        let handle = metricer.boot();
+
+        metricer.boot().shutdown().await.unwrap();
+
         assert_eq!(
             reporter.pop(),
             MeterData {
@@ -98,7 +100,6 @@ fn metrics() {
                 })),
             }
         );
-        handle.abort();
     }
 
     {
@@ -111,7 +112,9 @@ fn metrics() {
         histogram.add_value(1.);
         histogram.add_value(1.5);
         histogram.add_value(2.);
-        let handle = metricer.boot();
+
+        metricer.boot().shutdown().await.unwrap();
+
         assert_eq!(
             reporter.pop(),
             MeterData {
@@ -145,7 +148,6 @@ fn metrics() {
                 })),
             }
         );
-        handle.abort();
     }
 }
 

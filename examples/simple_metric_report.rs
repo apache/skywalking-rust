@@ -20,7 +20,7 @@ use skywalking::{
     metrics::{meter::Counter, metricer::Metricer},
     reporter::grpc::GrpcReporter,
 };
-use std::{error::Error, future};
+use std::error::Error;
 use tokio::signal;
 
 #[tokio::main]
@@ -48,8 +48,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     counter.increment(1.);
 
-    metricer.boot().await;
-    handle.await;
+    metricer.boot().await.unwrap();
+    handle.await.unwrap();
 
     Ok(())
 }

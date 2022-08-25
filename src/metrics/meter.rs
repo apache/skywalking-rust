@@ -24,11 +24,8 @@ use crate::{
 use portable_atomic::AtomicF64;
 use std::{
     cmp::Ordering::Equal,
-    collections::HashSet,
-    sync::atomic::{self, AtomicI64, AtomicUsize, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    sync::atomic::{AtomicI64, Ordering},
 };
-use tokio::sync::Mutex;
 
 pub trait Transform: Send + Sync {
     fn meter_id(&self) -> MeterId;
@@ -38,9 +35,9 @@ pub trait Transform: Send + Sync {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum MeterType {
-    COUNTER,
-    GAUGE,
-    HISTOGRAM,
+    Counter,
+    Gauge,
+    Histogram,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -93,7 +90,7 @@ impl Counter {
         Self {
             id: MeterId {
                 name: name.to_string(),
-                typ: MeterType::COUNTER,
+                typ: MeterType::Counter,
                 labels: vec![],
             },
             mode: CounterMode::INCREMENT,
@@ -180,7 +177,7 @@ impl<G: Fn() -> f64> Gauge<G> {
         Self {
             id: MeterId {
                 name: name.to_string(),
-                typ: MeterType::GAUGE,
+                typ: MeterType::Gauge,
                 labels: vec![],
             },
             getter,
@@ -260,11 +257,11 @@ impl Histogram {
         Self {
             id: MeterId {
                 name: name.to_string(),
-                typ: MeterType::HISTOGRAM,
+                typ: MeterType::Histogram,
                 labels: vec![],
             },
             buckets: {
-                steps.sort_by(|a, b| a.partial_cmp(&b).unwrap_or(Equal));
+                steps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Equal));
                 steps.dedup();
                 steps.into_iter().map(Bucket::new).collect()
             },
