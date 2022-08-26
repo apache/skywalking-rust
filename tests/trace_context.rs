@@ -31,6 +31,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
+use tokio::{runtime::Handle, task};
 
 /// Serialize from A should equal Serialize from B
 #[allow(dead_code)]
@@ -217,7 +218,7 @@ async fn create_span_from_context() {
 }
 
 #[test]
-fn crossprocess_test() {
+fn cross_process_test() {
     let tracer = Tracer::new("service", "instance", PrintReporter::new());
     let mut context1 = tracer.create_trace_context();
     assert_eq!(context1.service(), "service");
@@ -239,6 +240,7 @@ fn crossprocess_test() {
 
             let span3 = context2.last_span().unwrap();
 
+            assert_eq!(context1.trace_id(), context2.trace_id());
             assert_eq!(span3.span_id, 0);
             assert_eq!(span3.parent_span_id, -1);
             assert_eq!(span3.refs.len(), 1);
@@ -257,6 +259,58 @@ fn crossprocess_test() {
             check_serialize_equivalent(&expected_ref, &span3.refs[0]);
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn cross_process_test_1() {
+    let propagation = Mutex::new(String::new());
+
+    MockReporter::with(
+        |reporter| {
+            let tracer = Tracer::new("service1", "instance1", reporter);
+            let mut context = tracer.create_trace_context();
+            let _span1 = context.create_entry_span("entry_1");
+            let _span2 = context.create_exit_span("exit_1", "peer_1");
+            *propagation.try_lock().unwrap() = encode_propagation(&context, "exit_1", "peer_1");
+            tracer
+        },
+        |segment1| {
+            let propagation = propagation.lock().unwrap().clone();
+            task::block_in_place(move || {
+                Handle::current().block_on(async move {
+                    MockReporter::with(
+                        |reporter| {
+                            let tracer = Tracer::new("service2", "instance2", reporter);
+                            let mut context = tracer.create_trace_context();
+                            let _span1 = context.create_entry_span_with_propagation(
+                                "entry_1",
+                                &decode_propagation(&propagation).unwrap(),
+                            );
+                            tracer
+                        },
+                        |segment2| {
+                            assert_eq!(segment1.trace_id, segment2.trace_id);
+                            assert_eq!(
+                                segment2.spans[0].refs[0],
+                                SegmentReference {
+                                    ref_type: RefType::CrossProcess as i32,
+                                    trace_id: segment1.trace_id.clone(),
+                                    parent_trace_segment_id: segment1.trace_segment_id.clone(),
+                                    parent_span_id: 1,
+                                    parent_service: segment1.service.clone(),
+                                    parent_service_instance: segment1.service_instance.clone(),
+                                    parent_endpoint: segment1.spans[0].operation_name.clone(),
+                                    network_address_used_at_peer: segment1.spans[0].peer.clone(),
+                                }
+                            );
+                        },
+                    )
+                    .await;
+                });
+            });
+        },
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
