@@ -231,6 +231,7 @@ impl TracingContext {
         propagation: &PropagationContext,
     ) -> Span {
         let mut span = self.create_entry_span(operation_name);
+        self.trace_id = propagation.parent_trace_id.clone();
         span.with_span_object_mut(|span| {
             span.refs.push(SegmentReference {
                 ref_type: RefType::CrossProcess as i32,
