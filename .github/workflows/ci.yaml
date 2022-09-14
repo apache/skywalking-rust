@@ -75,6 +75,7 @@ jobs:
       matrix:
         features:
           - ""
+          - "--features management"
           - "--features vendored"
           - "--all-features"
     runs-on: ubuntu-20.04
@@ -103,6 +104,6 @@ jobs:
       - name: Install protoc
         run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
       - name: Install Rust toolchain
-        run: rustup toolchain install stable
+        run: rustup toolchain install nightly-2022-07-30
       - name: Run docs
-        run: cargo rustdoc --release -- -D warnings
+        run: cargo +nightly-2022-07-30 rustdoc --release --all-features -- --cfg docsrs

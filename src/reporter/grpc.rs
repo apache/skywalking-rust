@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+#[cfg(feature = "management")]
+use crate::skywalking_proto::v3::management_service_client::ManagementServiceClient;
 use crate::{
     reporter::{CollectItem, Report},
     skywalking_proto::v3::{
@@ -104,6 +106,9 @@ struct Inner<P, C> {
     trace_client: Mutex<TraceSegmentReportServiceClient<Channel>>,
     log_client: Mutex<LogReportServiceClient<Channel>>,
     meter_client: Mutex<MeterReportServiceClient<Channel>>,
+    #[cfg(feature = "management")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
+    management_client: Mutex<ManagementServiceClient<Channel>>,
     producer: P,
     consumer: Mutex<Option<C>>,
     is_reporting: AtomicBool,
@@ -138,7 +143,9 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
             inner: Arc::new(Inner {
                 trace_client: Mutex::new(TraceSegmentReportServiceClient::new(channel.clone())),
                 log_client: Mutex::new(LogReportServiceClient::new(channel.clone())),
-                meter_client: Mutex::new(MeterReportServiceClient::new(channel)),
+                meter_client: Mutex::new(MeterReportServiceClient::new(channel.clone())),
+                #[cfg(feature = "management")]
+                management_client: Mutex::new(ManagementServiceClient::new(channel)),
                 producer,
                 consumer: Mutex::new(Some(consumer)),
                 is_reporting: Default::default(),
@@ -216,13 +223,43 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
         // TODO Implement batch collect in future.
         match item {
             CollectItem::Trace(item) => {
-                self.trace_buffer.push_back(item);
+                self.trace_buffer.push_back(*item);
             }
             CollectItem::Log(item) => {
-                self.log_buffer.push_back(item);
+                self.log_buffer.push_back(*item);
             }
             CollectItem::Meter(item) => {
-                self.meter_buffer.push_back(item);
+                self.meter_buffer.push_back(*item);
+            }
+            #[cfg(feature = "management")]
+            CollectItem::Instance(item) => {
+                if let Err(e) = self
+                    .inner
+                    .management_client
+                    .lock()
+                    .await
+                    .report_instance_properties(*item)
+                    .await
+                {
+                    if let Some(status_handle) = &self.status_handle {
+                        status_handle(e);
+                    }
+                }
+            }
+            #[cfg(feature = "management")]
+            CollectItem::Ping(item) => {
+                if let Err(e) = self
+                    .inner
+                    .management_client
+                    .lock()
+                    .await
+                    .keep_alive(*item)
+                    .await
+                {
+                    if let Some(status_handle) = &self.status_handle {
+                        status_handle(e);
+                    }
+                }
             }
         }
 

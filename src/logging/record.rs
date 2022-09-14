@@ -68,26 +68,24 @@ impl LogRecord {
     }
 
     #[inline]
-    pub fn endpoint(mut self, endpoint: impl ToString) -> Self {
-        self.endpoint = endpoint.to_string();
+    pub fn endpoint(mut self, endpoint: impl Into<String>) -> Self {
+        self.endpoint = endpoint.into();
         self
     }
 
-    pub fn add_tag(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.tags.push((key.to_string(), value.to_string()));
+    pub fn add_tag(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.tags.push((key.into(), value.into()));
         self
     }
 
     pub fn add_tags<K, V, I>(mut self, tags: I) -> Self
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
-        self.tags.extend(
-            tags.into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string())),
-        );
+        self.tags
+            .extend(tags.into_iter().map(|(k, v)| (k.into(), v.into())));
         self
     }
 
@@ -107,8 +105,8 @@ impl LogRecord {
         self
     }
 
-    pub fn content(mut self, content: impl ToString) -> Self {
-        self.content = content.to_string();
+    pub fn content(mut self, content: impl Into<String>) -> Self {
+        self.content = content.into();
         self
     }
 

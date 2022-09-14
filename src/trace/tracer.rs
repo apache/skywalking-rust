@@ -55,14 +55,14 @@ pub struct Tracer {
 impl Tracer {
     /// New with service info and reporter.
     pub fn new(
-        service_name: impl ToString,
-        instance_name: impl ToString,
+        service_name: impl Into<String>,
+        instance_name: impl Into<String>,
         reporter: impl Report + Send + Sync + 'static,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
-                service_name: service_name.to_string(),
-                instance_name: instance_name.to_string(),
+                service_name: service_name.into(),
+                instance_name: instance_name.into(),
                 reporter: Box::new(reporter),
             }),
         }
@@ -90,7 +90,7 @@ impl Tracer {
         let segment_object = context.convert_to_segment_object();
         self.inner
             .reporter
-            .report(CollectItem::Trace(segment_object));
+            .report(CollectItem::Trace(Box::new(segment_object)));
     }
 
     fn downgrade(&self) -> WeakTracer {

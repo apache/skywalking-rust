@@ -161,7 +161,7 @@ impl Report for MockReporter {
     fn report(&self, item: CollectItem) {
         match item {
             CollectItem::Log(data) => {
-                self.items.try_lock().unwrap().push_back(data);
+                self.items.try_lock().unwrap().push_back(*data);
             }
             _ => {}
         }

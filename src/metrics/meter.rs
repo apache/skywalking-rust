@@ -48,21 +48,19 @@ pub struct MeterId {
 }
 
 impl MeterId {
-    fn add_label(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.labels.push((key.to_string(), value.to_string()));
+    fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.labels.push((key.into(), value.into()));
         self
     }
 
     fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
-        self.labels.extend(
-            tags.into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string())),
-        );
+        self.labels
+            .extend(tags.into_iter().map(|(k, v)| (k.into(), v.into())));
         self
     }
 }
@@ -86,10 +84,10 @@ pub struct Counter {
 
 impl Counter {
     #[inline]
-    pub fn new(name: impl ToString) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
             id: MeterId {
-                name: name.to_string(),
+                name: name.into(),
                 typ: MeterType::Counter,
                 labels: vec![],
             },
@@ -100,7 +98,7 @@ impl Counter {
     }
 
     #[inline]
-    pub fn add_label(mut self, key: impl ToString, value: impl ToString) -> Self {
+    pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
@@ -108,8 +106,8 @@ impl Counter {
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
         self.id = self.id.add_labels(tags);
@@ -173,10 +171,10 @@ pub struct Gauge<G> {
 
 impl<G: Fn() -> f64> Gauge<G> {
     #[inline]
-    pub fn new(name: impl ToString, getter: G) -> Self {
+    pub fn new(name: impl Into<String>, getter: G) -> Self {
         Self {
             id: MeterId {
-                name: name.to_string(),
+                name: name.into(),
                 typ: MeterType::Gauge,
                 labels: vec![],
             },
@@ -185,7 +183,7 @@ impl<G: Fn() -> f64> Gauge<G> {
     }
 
     #[inline]
-    pub fn add_label(mut self, key: impl ToString, value: impl ToString) -> Self {
+    pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
@@ -193,8 +191,8 @@ impl<G: Fn() -> f64> Gauge<G> {
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
         self.id = self.id.add_labels(tags);
@@ -253,10 +251,10 @@ pub struct Histogram {
 }
 
 impl Histogram {
-    pub fn new(name: impl ToString, mut steps: Vec<f64>) -> Self {
+    pub fn new(name: impl Into<String>, mut steps: Vec<f64>) -> Self {
         Self {
             id: MeterId {
-                name: name.to_string(),
+                name: name.into(),
                 typ: MeterType::Histogram,
                 labels: vec![],
             },
@@ -269,7 +267,7 @@ impl Histogram {
     }
 
     #[inline]
-    pub fn add_label(mut self, key: impl ToString, value: impl ToString) -> Self {
+    pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
@@ -277,8 +275,8 @@ impl Histogram {
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
         self.id = self.id.add_labels(tags);

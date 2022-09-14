@@ -33,7 +33,9 @@ homepage = "https://skywalking.apache.org/"
 repository = "https://github.com/apache/skywalking-rust"
 
 [features]
+management = ["hostname", "systemstat"]
 vendored = ["protobuf-src"]
+
 mock = []  # For internal integration testing only, do not use.
 
 [dependencies]
@@ -43,10 +45,13 @@ bytes = "1.2.1"
 cfg-if = "1.0.0"
 futures-core = "0.3.21"
 futures-util = "0.3.21"
+hostname = { version = "0.3.1", optional = true }
+once_cell = "1.14.0"
 portable-atomic = { version = "0.3.13", features = ["float"] }
 prost = "0.11.0"
 prost-derive = "0.11.0"
 serde = { version = "1.0.143", features = ["derive"] }
+systemstat = { version = "0.2.0", optional = true }
 thiserror = "1.0.32"
 tokio = { version = "1.20.1", features = ["parking_lot"] }
 tonic = { version = "0.8.0", features = ["codegen"] }
@@ -73,6 +78,19 @@ required-features = ["mock"]
 name = "metrics"
 required-features = ["mock"]
 
+[[test]]
+name = "management"
+required-features = ["management"]
+
 [[example]]
 name = "simple_trace_report"
 path = "examples/simple_trace_report.rs"
+
+[[example]]
+name = "simple_management_report"
+path = "examples/simple_management_report.rs"
+required-features = ["management"]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+all-features = true

@@ -119,15 +119,15 @@ impl std::fmt::Debug for TracingContext {
 impl TracingContext {
     /// Generate a new trace context.
     pub(crate) fn new(
-        service_name: impl ToString,
-        instance_name: impl ToString,
+        service_name: impl Into<String>,
+        instance_name: impl Into<String>,
         tracer: WeakTracer,
     ) -> Self {
         TracingContext {
             trace_id: RandomGenerator::generate(),
             trace_segment_id: RandomGenerator::generate(),
-            service: service_name.to_string(),
-            service_instance: instance_name.to_string(),
+            service: service_name.into(),
+            service_instance: instance_name.into(),
             next_span_id: Default::default(),
             span_stack: Default::default(),
             primary_endpoint_name: Default::default(),

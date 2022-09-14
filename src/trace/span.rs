@@ -141,15 +141,15 @@ impl Span {
     /// Add logs to the span.
     pub fn add_log<K, V, I>(&mut self, message: I)
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
         self.with_span_object_mut(|span| span.add_log(message))
     }
 
     /// Add tag to the span.
-    pub fn add_tag(&mut self, key: impl ToString, value: impl ToString) {
+    pub fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
         self.with_span_object_mut(|span| span.add_tag(key, value))
     }
 }
