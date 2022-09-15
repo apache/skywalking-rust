@@ -19,7 +19,7 @@ use once_cell::sync::Lazy;
 use std::{collections::HashMap, process};
 use systemstat::{IpAddr, Platform, System};
 
-pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
+static IPS: Lazy<Vec<String>> = Lazy::new(|| {
     System::new()
         .networks()
         .ok()
@@ -42,13 +42,13 @@ pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
         .unwrap_or_default()
 });
 
-pub static HOST_NAME: Lazy<Option<String>> = Lazy::new(|| {
+static HOST_NAME: Lazy<Option<String>> = Lazy::new(|| {
     hostname::get()
         .ok()
         .and_then(|hostname| hostname.into_string().ok())
 });
 
-pub const OS_NAME: Option<&str> = if cfg!(target_os = "linux") {
+const OS_NAME: Option<&str> = if cfg!(target_os = "linux") {
     Some("Linux")
 } else if cfg!(target_os = "windows") {
     Some("Windows")

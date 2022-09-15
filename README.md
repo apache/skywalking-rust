@@ -55,6 +55,31 @@ LogRecord is the simple builder for the LogData, which is the Log format of Skyw
 - **Gauge** API represents a single numerical value.
 - **Histogram** API represents a summary sample observations with customized buckets.
 
+## Management
+
+Reporting the extra information of the instance.
+
+### Report instance properties
+
+The method `insert_os_info` of `skywalking::management::instance::Properties` will insert the predefined os info.
+In addition, you can use `insert`, `update`, and `remove` to customize your instance information.
+
+The predefined os info:
+
+| Key                      | Value                          |
+| ------------------------ | ------------------------------ |
+| hostname                 | The hostname of os.            |
+| ipv4 (probably multiple) | The ipv4 addresses of network. |
+| language                 | rust                           |
+| OS Name                  | Linux / Windows / Mac OS X     |
+| Process No.              | The ID of Process.             |
+
+### Keep alive
+
+Keep the instance alive in the backend analysis.
+Only recommend to do separate keepAlive report when no trace and metrics needs to be reported.
+Otherwise, it is duplicated.
+
 # Example
 
 ```rust, no_run
