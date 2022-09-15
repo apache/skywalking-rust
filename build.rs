@@ -23,11 +23,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .compile(
             &[
-                "./skywalking-data-collect-protocol/language-agent/Tracing.proto",
                 "./skywalking-data-collect-protocol/language-agent/Meter.proto",
+                "./skywalking-data-collect-protocol/language-agent/Tracing.proto",
                 "./skywalking-data-collect-protocol/logging/Logging.proto",
+                "./skywalking-data-collect-protocol/management/Management.proto",
             ],
             &["./skywalking-data-collect-protocol"],
         )?;
+
     Ok(())
 }

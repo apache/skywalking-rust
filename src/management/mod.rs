@@ -13,20 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-#![warn(rust_2018_idioms)]
-#![warn(clippy::dbg_macro, clippy::print_stdout)]
-#![doc = include_str!("../README.md")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub mod common;
-pub(crate) mod error;
-pub mod logging;
-#[cfg(feature = "management")]
-#[cfg_attr(docsrs, doc(cfg(feature = "management")))]
-pub mod management;
-pub mod metrics;
-pub mod reporter;
-pub mod skywalking_proto;
-pub mod trace;
-
-pub use error::{Error, Result};
+pub mod instance;
+pub mod manager;

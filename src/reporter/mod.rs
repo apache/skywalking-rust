@@ -17,6 +17,8 @@
 pub mod grpc;
 pub mod print;
 
+#[cfg(feature = "management")]
+use crate::skywalking_proto::v3::{InstancePingPkg, InstanceProperties};
 use crate::skywalking_proto::v3::{LogData, MeterData, SegmentObject};
 use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
@@ -25,9 +27,15 @@ use tokio::sync::OnceCell;
 #[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum CollectItem {
-    Trace(SegmentObject),
-    Log(LogData),
-    Meter(MeterData),
+    Trace(Box<SegmentObject>),
+    Log(Box<LogData>),
+    Meter(Box<MeterData>),
+    #[cfg(feature = "management")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
+    Instance(Box<InstanceProperties>),
+    #[cfg(feature = "management")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
+    Ping(Box<InstancePingPkg>),
 }
 
 pub(crate) type DynReport = dyn Report + Send + Sync + 'static;

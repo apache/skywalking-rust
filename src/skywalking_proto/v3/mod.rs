@@ -21,8 +21,8 @@ impl SpanObject {
     /// Add logs to the span.
     pub fn add_log<K, V, I>(&mut self, message: I)
     where
-        K: ToString,
-        V: ToString,
+        K: Into<String>,
+        V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
         let log = Log {
@@ -32,8 +32,8 @@ impl SpanObject {
                 .map(|v| {
                     let (key, value) = v;
                     KeyStringValuePair {
-                        key: key.to_string(),
-                        value: value.to_string(),
+                        key: key.into(),
+                        value: value.into(),
                     }
                 })
                 .collect(),
@@ -42,10 +42,10 @@ impl SpanObject {
     }
 
     /// Add tag to the span.
-    pub fn add_tag(&mut self, key: impl ToString, value: impl ToString) {
+    pub fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
         self.tags.push(KeyStringValuePair {
-            key: key.to_string(),
-            value: value.to_string(),
+            key: key.into(),
+            value: value.into(),
         });
     }
 }

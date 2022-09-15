@@ -387,6 +387,6 @@ impl Report for MockReporter {
             CollectItem::Trace(segment) => segment,
             _ => unreachable!(),
         };
-        self.segments.try_lock().unwrap().push_back(segment);
+        self.segments.try_lock().unwrap().push_back(*segment);
     }
 }

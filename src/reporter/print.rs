@@ -57,6 +57,22 @@ impl Report for PrintReporter {
                     println!("meter data={:?}", data);
                 }
             }
+            #[cfg(feature = "management")]
+            CollectItem::Instance(data) => {
+                if self.use_stderr {
+                    eprintln!("instance properties data={:?}", data);
+                } else {
+                    println!("instance properties data={:?}", data);
+                }
+            }
+            #[cfg(feature = "management")]
+            CollectItem::Ping(data) => {
+                if self.use_stderr {
+                    eprintln!("ping data={:?}", data);
+                } else {
+                    println!("ping data={:?}", data);
+                }
+            }
         }
     }
 }

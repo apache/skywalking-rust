@@ -42,13 +42,13 @@ pub struct Metricer {
 impl Metricer {
     /// New with service info and reporter.
     pub fn new(
-        service_name: impl ToString,
-        instance_name: impl ToString,
+        service_name: impl Into<String>,
+        instance_name: impl Into<String>,
         reporter: impl Report + Send + Sync + 'static,
     ) -> Self {
         Self {
-            service_name: service_name.to_string(),
-            instance_name: instance_name.to_string(),
+            service_name: service_name.into(),
+            instance_name: instance_name.into(),
             reporter: Box::new(reporter),
             meter_map: Default::default(),
             report_interval: Duration::from_secs(20),
@@ -86,7 +86,7 @@ impl Metricer {
                     for trans in metricer_.meter_map.values() {
                         metricer_
                             .reporter
-                            .report(CollectItem::Meter(trans.transform(&metricer_)));
+                            .report(CollectItem::Meter(Box::new(trans.transform(&metricer_))));
                     }
                 })
                 .await;
