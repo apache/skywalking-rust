@@ -143,9 +143,9 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
             inner: Arc::new(Inner {
                 trace_client: Mutex::new(TraceSegmentReportServiceClient::new(channel.clone())),
                 log_client: Mutex::new(LogReportServiceClient::new(channel.clone())),
-                meter_client: Mutex::new(MeterReportServiceClient::new(channel.clone())),
                 #[cfg(feature = "management")]
-                management_client: Mutex::new(ManagementServiceClient::new(channel)),
+                management_client: Mutex::new(ManagementServiceClient::new(channel.clone())),
+                meter_client: Mutex::new(MeterReportServiceClient::new(channel)),
                 producer,
                 consumer: Mutex::new(Some(consumer)),
                 is_reporting: Default::default(),
