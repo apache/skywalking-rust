@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Propagation encoder.
+
 use crate::trace::trace_context::TracingContext;
 use base64::encode;
 

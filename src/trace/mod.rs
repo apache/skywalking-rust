@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Skywalking trace api.
+
 pub mod propagation;
 pub mod span;
 pub mod trace_context;

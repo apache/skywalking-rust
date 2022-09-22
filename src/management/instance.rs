@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Skywalking report instance properties items.
+
 use crate::skywalking_proto::v3::{InstanceProperties, KeyStringValuePair};
 use once_cell::sync::Lazy;
 use std::{collections::HashMap, process};
@@ -58,39 +60,51 @@ const OS_NAME: Option<&str> = if cfg!(target_os = "linux") {
     None
 };
 
+/// Builder of [InstanceProperties].
 #[derive(Debug, Default)]
 pub struct Properties {
     inner: HashMap<String, Vec<String>>,
 }
 
 impl Properties {
+    /// Instance properties key of host name.
     pub const KEY_HOST_NAME: &'static str = "hostname";
+    /// Instance properties key of ipv4.
     pub const KEY_IPV4: &'static str = "ipv4";
+    /// Instance properties key of programming language.
     pub const KEY_LANGUAGE: &'static str = "language";
+    /// Instance properties key of os name.
     pub const KEY_OS_NAME: &'static str = "OS Name";
+    /// Instance properties key of process number.
     pub const KEY_PROCESS_NO: &'static str = "Process No.";
 }
 
 impl Properties {
+    /// New empty properties.
     #[inline]
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Insert key value pair, will not overwrite the original, because multiple
+    /// values of the same key can exist.
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<String>) {
         self.inner.entry(key.into()).or_default().push(value.into());
     }
 
+    /// Overwrite the values, whether there are multiple.
     pub fn update(&mut self, key: &str, value: impl Into<String>) {
         if let Some(values) = self.inner.get_mut(key) {
             *values = vec![value.into()];
         }
     }
 
+    /// Remove all values associated the key.
     pub fn remove(&mut self, key: &str) {
         self.inner.remove(key);
     }
 
+    /// Insert the OS system info, such as os name, host name, etc.
     pub fn insert_os_info(&mut self) {
         for (key, value) in build_os_info() {
             self.insert(key, value);

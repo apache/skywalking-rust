@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Meter with multiple types.
+
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
     metrics::metricer::Metricer,
@@ -27,12 +29,16 @@ use std::{
     sync::atomic::{AtomicI64, Ordering},
 };
 
+/// Transform to [MeterData].
 pub trait Transform: Send + Sync {
+    /// Get the meter id.
     fn meter_id(&self) -> MeterId;
 
+    /// Transform to [MeterData].
     fn transform(&self, metricer: &Metricer) -> MeterData;
 }
 
+/// Predefine meter type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum MeterType {
     Counter,
@@ -40,6 +46,7 @@ pub(crate) enum MeterType {
     Histogram,
 }
 
+/// Unique meter id for metrics.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MeterId {
     name: String,
@@ -75,6 +82,7 @@ pub enum CounterMode {
     RATE,
 }
 
+/// Meter with type `Counter`.
 pub struct Counter {
     id: MeterId,
     mode: CounterMode,
@@ -83,6 +91,7 @@ pub struct Counter {
 }
 
 impl Counter {
+    /// New meter with type `Counter`.
     #[inline]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -97,12 +106,14 @@ impl Counter {
         }
     }
 
+    /// Add label.
     #[inline]
     pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
 
+    /// Add labels.
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
@@ -114,16 +125,19 @@ impl Counter {
         self
     }
 
+    /// Set counter mode.
     #[inline]
     pub fn mode(mut self, mode: CounterMode) -> Self {
         self.mode = mode;
         self
     }
 
+    /// Increment meter value by count.
     pub fn increment(&self, count: f64) {
         self.count.fetch_add(count, Ordering::Acquire);
     }
 
+    /// Get meter value.
     pub fn get(&self) -> f64 {
         self.count.load(Ordering::Acquire)
     }
@@ -164,12 +178,14 @@ impl Transform for Counter {
     }
 }
 
+/// Meter with type `Gauge`.
 pub struct Gauge<G> {
     id: MeterId,
     getter: G,
 }
 
 impl<G: Fn() -> f64> Gauge<G> {
+    /// New meter with type `Gauge` and getter.
     #[inline]
     pub fn new(name: impl Into<String>, getter: G) -> Self {
         Self {
@@ -182,12 +198,14 @@ impl<G: Fn() -> f64> Gauge<G> {
         }
     }
 
+    /// Add label.
     #[inline]
     pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
 
+    /// Add labels.
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
@@ -199,6 +217,7 @@ impl<G: Fn() -> f64> Gauge<G> {
         self
     }
 
+    /// Get the meter value by calling getter.
     pub fn get(&self) -> f64 {
         (self.getter)()
     }
@@ -245,12 +264,14 @@ impl Bucket {
     }
 }
 
+/// Meter with type `Histogram`.
 pub struct Histogram {
     id: MeterId,
     buckets: Vec<Bucket>,
 }
 
 impl Histogram {
+    /// New meter with type `Histogram`.
     pub fn new(name: impl Into<String>, mut steps: Vec<f64>) -> Self {
         Self {
             id: MeterId {
@@ -266,12 +287,14 @@ impl Histogram {
         }
     }
 
+    /// Add label.
     #[inline]
     pub fn add_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.id = self.id.add_label(key, value);
         self
     }
 
+    /// Add labels.
     #[inline]
     pub fn add_labels<K, V, I>(mut self, tags: I) -> Self
     where
@@ -283,6 +306,7 @@ impl Histogram {
         self
     }
 
+    /// Increment meter value by the bucket owned the value.
     pub fn add_value(&self, value: f64) {
         if let Some(index) = self.find_bucket(value) {
             self.buckets[index].count.fetch_add(1, Ordering::Acquire);

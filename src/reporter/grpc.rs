@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Grpc implementation of [Report].
+
 #[cfg(feature = "management")]
 use crate::skywalking_proto::v3::management_service_client::ManagementServiceClient;
 use crate::{
@@ -49,7 +51,10 @@ use tonic::{
     transport::{self, Channel, Endpoint},
 };
 
+/// Special purpose, used for user-defined production operations. Generally, it
+/// does not need to be handled.
 pub trait CollectItemProduce: Send + Sync + 'static {
+    /// Produce the collect item non-blocking.
     fn produce(&self, item: CollectItem) -> Result<(), Box<dyn Error>>;
 }
 
@@ -65,15 +70,19 @@ impl CollectItemProduce for mpsc::UnboundedSender<CollectItem> {
     }
 }
 
+/// Special purpose, used for user-defined consume operations. Generally, it
+/// does not need to be handled.
 #[async_trait]
-pub trait ColletcItemConsume: Send + Sync + 'static {
+pub trait CollectItemConsume: Send + Sync + 'static {
+    /// Consume the collect item blocking.
     async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>>;
 
+    /// Try to consume the collect item non-blocking.
     async fn try_consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>>;
 }
 
 #[async_trait]
-impl ColletcItemConsume for () {
+impl CollectItemConsume for () {
     async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
         Ok(None)
     }
@@ -84,7 +93,7 @@ impl ColletcItemConsume for () {
 }
 
 #[async_trait]
-impl ColletcItemConsume for mpsc::UnboundedReceiver<CollectItem> {
+impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
     async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
         Ok(self.recv().await)
     }
@@ -115,19 +124,23 @@ struct Inner<P, C> {
     is_closed: AtomicBool,
 }
 
+/// Alias of dyn [Error] callback.
 pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
 
+/// Reporter which will report to Skywalking OAP server via grpc protocol.
 pub struct GrpcReporter<P, C> {
     inner: Arc<Inner<P, C>>,
     err_handle: Arc<Option<Box<DynErrHandle>>>,
 }
 
 impl GrpcReporter<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
+    /// New with exists [Channel], so you can clone the [Channel] for multiplex.
     pub fn new(channel: Channel) -> Self {
         let (p, c) = mpsc::unbounded_channel();
         Self::new_with_pc(channel, p, c)
     }
 
+    /// Connect to the Skywalking OAP server.
     pub async fn connect(
         address: impl TryInto<Endpoint, Error = transport::Error>,
     ) -> crate::Result<Self> {
@@ -137,7 +150,9 @@ impl GrpcReporter<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<Co
     }
 }
 
-impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
+impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
+    /// Special purpose, used for user-defined produce and consume operations,
+    /// usually you can use [GrpcReporter::connect] and [GrpcReporter::new].
     pub fn new_with_pc(channel: Channel, producer: P, consumer: C) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -155,6 +170,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
         }
     }
 
+    /// Set error handle. By default, the error will not be handle.
     pub fn with_err_handle(
         mut self,
         handle: impl Fn(Box<dyn Error>) + Send + Sync + 'static,
@@ -163,9 +179,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> GrpcReporter<P, C> {
         self
     }
 
-    /// Start to reporting, quit when shutdown_signal received.
-    ///
-    /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
+    /// Start to reporting.
     ///
     /// # Panics
     ///
@@ -198,7 +212,7 @@ impl<P, C> Clone for GrpcReporter<P, C> {
     }
 }
 
-impl<P: CollectItemProduce, C: ColletcItemConsume> Report for GrpcReporter<P, C> {
+impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C> {
     fn report(&self, item: CollectItem) {
         if !self.inner.is_closed.load(Ordering::Relaxed) {
             if let Err(e) = self.inner.producer.produce(item) {
@@ -218,7 +232,7 @@ struct ReporterAndBuffer<P, C> {
     meter_buffer: LinkedList<MeterData>,
 }
 
-impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
+impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
     async fn report(&mut self, item: CollectItem) {
         // TODO Implement batch collect in future.
         match item {
@@ -312,14 +326,17 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> ReporterAndBuffer<P, C> {
     }
 }
 
-/// Created by [GrpcReporter::reporting].
+/// Handle of [GrpcReporter::reporting].
 pub struct Reporting<P, C> {
     rb: ReporterAndBuffer<P, C>,
     consumer: C,
     shutdown_signal: Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>,
 }
 
-impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
+impl<P: CollectItemProduce, C: CollectItemConsume> Reporting<P, C> {
+    /// Quit when shutdown_signal received.
+    ///
+    /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
     pub fn with_graceful_shutdown(
         mut self,
         shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
@@ -328,17 +345,20 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
         self
     }
 
-    pub fn with_staus_handle(mut self, handle: impl Fn(tonic::Status) + Send + 'static) -> Self {
+    /// Set the failed status handle. By default, the status will not be handle.
+    pub fn with_status_handle(mut self, handle: impl Fn(tonic::Status) + Send + 'static) -> Self {
         self.rb.status_handle = Some(Box::new(handle));
         self
     }
 
+    /// Spawn the reporting in background.
     pub fn spawn(self) -> ReportingJoinHandle {
         ReportingJoinHandle {
             handle: tokio::spawn(self.start()),
         }
     }
 
+    /// Start the consume and report task.
     pub async fn start(self) -> crate::Result<()> {
         let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
         let Reporting {
@@ -393,6 +413,7 @@ impl<P: CollectItemProduce, C: ColletcItemConsume> Reporting<P, C> {
     }
 }
 
+/// Handle of [Reporting::spawn].
 pub struct ReportingJoinHandle {
     handle: JoinHandle<crate::Result<()>>,
 }

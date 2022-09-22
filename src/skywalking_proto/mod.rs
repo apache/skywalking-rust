@@ -13,4 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
+//! Generated code of `skywalking-data-collect-protocol`, by `tonic`.
+
 pub mod v3;

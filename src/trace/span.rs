@@ -14,6 +14,9 @@
 // limitations under the License.
 //
 
+//! Span is an important and common concept in distributed tracing system. Learn
+//! Span from Google Dapper Paper.
+
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
     error::LOCK_MSG,
@@ -125,15 +128,18 @@ impl Span {
         self.stack.upgrade().expect("Context has dropped")
     }
 
+    /// Immutable with inner span object.
     pub fn with_span_object<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> T {
         self.upgrade_stack()
             .with_active(|stack| f(&stack[self.index]))
     }
 
+    /// Mutable with inner span object.
     pub fn with_span_object_mut<T>(&mut self, f: impl FnOnce(&mut SpanObject) -> T) -> T {
         f(&mut (self.upgrade_stack().active.try_write().expect(LOCK_MSG))[self.index])
     }
 
+    /// Get span id.
     pub fn span_id(&self) -> i32 {
         self.with_span_object(|span| span.span_id)
     }

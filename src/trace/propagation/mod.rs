@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Cross process propagation.
+
 pub mod context;
 pub mod decoder;
 pub mod encoder;

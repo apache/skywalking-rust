@@ -14,5 +14,7 @@
 // limitations under the License.
 //
 
+//! Skywalking logging api.
+
 pub mod logger;
 pub mod record;

@@ -14,5 +14,7 @@
 // limitations under the License.
 //
 
+//! Skywalking metrics api.
+
 pub mod meter;
 pub mod metricer;

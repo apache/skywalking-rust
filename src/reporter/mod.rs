@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Reporter contains common `Report` trait and the implementations.
+
 pub mod grpc;
 pub mod print;
 
@@ -24,15 +26,21 @@ use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
 use tokio::sync::OnceCell;
 
+/// Collect item of protobuf object.
 #[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum CollectItem {
+    /// Tracing object.
     Trace(Box<SegmentObject>),
+    /// Log object.
     Log(Box<LogData>),
+    /// Metric object.
     Meter(Box<MeterData>),
+    /// Instance properties object.
     #[cfg(feature = "management")]
     #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     Instance(Box<InstanceProperties>),
+    /// Keep alive object.
     #[cfg(feature = "management")]
     #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     Ping(Box<InstancePingPkg>),
@@ -42,6 +50,7 @@ pub(crate) type DynReport = dyn Report + Send + Sync + 'static;
 
 /// Report provide non-blocking report method for trace, log and metric object.
 pub trait Report {
+    /// The non-blocking report method.
     fn report(&self, item: CollectItem);
 }
 

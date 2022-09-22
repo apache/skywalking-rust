@@ -14,19 +14,25 @@
 // limitations under the License.
 //
 
+//! Print implementation of [Report].
+
 use crate::reporter::{CollectItem, Report};
 
+/// Reporter which just print the collect items, not actual report to server,
+/// for debug usage.
 #[derive(Default, Clone)]
 pub struct PrintReporter {
     use_stderr: bool,
 }
 
 impl PrintReporter {
+    /// New with default.
     #[inline]
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// If true, use ``eprint!` to print, otherwise use `print!`.
     pub fn use_stderr(mut self, use_stderr: bool) -> Self {
         self.use_stderr = use_stderr;
         self

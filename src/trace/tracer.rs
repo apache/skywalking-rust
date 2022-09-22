@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Tracer items.
+
 use crate::{
     reporter::{CollectItem, DynReport, Report},
     trace::trace_context::TracingContext,
@@ -26,16 +28,16 @@ static GLOBAL_TRACER: OnceCell<Tracer> = OnceCell::const_new();
 /// Set the global tracer.
 pub fn set_global_tracer(tracer: Tracer) {
     if GLOBAL_TRACER.set(tracer).is_err() {
-        panic!("global tracer has setted")
+        panic!("global tracer has set")
     }
 }
 
 /// Get the global tracer.
 pub fn global_tracer() -> &'static Tracer {
-    GLOBAL_TRACER.get().expect("global tracer haven't setted")
+    GLOBAL_TRACER.get().expect("global tracer haven't set")
 }
 
-/// Create trace conetxt by global tracer.
+/// Create trace context by global tracer.
 pub fn create_trace_context() -> TracingContext {
     global_tracer().create_trace_context()
 }
@@ -68,15 +70,17 @@ impl Tracer {
         }
     }
 
+    /// Get service name.
     pub fn service_name(&self) -> &str {
         &self.inner.service_name
     }
 
+    /// Get instance name.
     pub fn instance_name(&self) -> &str {
         &self.inner.instance_name
     }
 
-    /// Create trace conetxt.
+    /// Create trace context.
     pub fn create_trace_context(&self) -> TracingContext {
         TracingContext::new(
             &self.inner.service_name,

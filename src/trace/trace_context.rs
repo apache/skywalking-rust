@@ -14,6 +14,10 @@
 // limitations under the License.
 //
 
+//! TracingContext is the context of the tracing process. Span should only be
+//! created through context, and be archived into the context after the span
+//! finished.
+
 use crate::{
     common::{
         random_generator::RandomGenerator,
@@ -37,18 +41,18 @@ use std::{
 
 #[derive(Default)]
 pub(crate) struct SpanStack {
-    // TODO Swith to use `try_rwlock` instead of `RwLock` for better performance.
-    pub(crate) finialized: RwLock<Vec<SpanObject>>,
+    // TODO Switch to use `try_rwlock` instead of `RwLock` for better performance.
+    pub(crate) finalized: RwLock<Vec<SpanObject>>,
     pub(crate) active: RwLock<Vec<SpanObject>>,
 }
 
 impl SpanStack {
-    pub(crate) fn with_finialized<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
-        f(&self.finialized.try_read().expect(LOCK_MSG))
+    pub(crate) fn with_finalized<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
+        f(&self.finalized.try_read().expect(LOCK_MSG))
     }
 
-    pub(crate) fn with_finialized_mut<T>(&self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
-        f(&mut *self.finialized.try_write().expect(LOCK_MSG))
+    pub(crate) fn with_finalized_mut<T>(&self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
+        f(&mut *self.finalized.try_write().expect(LOCK_MSG))
     }
 
     pub(crate) fn with_active<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
@@ -74,13 +78,16 @@ impl SpanStack {
         let span = self.pop_active(index);
         if let Some(mut span) = span {
             span.end_time = fetch_time(TimePeriod::End);
-            self.with_finialized_mut(|spans| spans.push(span));
+            self.with_finalized_mut(|spans| spans.push(span));
         } else {
             panic!("Finalize span isn't the active span");
         }
     }
 }
 
+/// TracingContext is the context of the tracing process. Span should only be
+/// created through context, and be archived into the context after the span
+/// finished.
 #[must_use = "call `create_entry_span` after `TracingContext` created."]
 pub struct TracingContext {
     trace_id: String,
@@ -103,8 +110,8 @@ impl std::fmt::Debug for TracingContext {
             .field("service_instance", &self.service_instance)
             .field("next_span_id", &self.next_span_id)
             .field(
-                "finialized_spans",
-                match self.span_stack.finialized.try_read() {
+                "finalized_spans",
+                match self.span_stack.finalized.try_read() {
                     Ok(spans) => {
                         span_objects = spans.clone();
                         &span_objects
@@ -135,21 +142,25 @@ impl TracingContext {
         }
     }
 
+    /// Get trace id.
     #[inline]
     pub fn trace_id(&self) -> &str {
         &self.trace_id
     }
 
+    /// Get trace segment id.
     #[inline]
     pub fn trace_segment_id(&self) -> &str {
         &self.trace_segment_id
     }
 
+    /// Get service name.
     #[inline]
     pub fn service(&self) -> &str {
         &self.service
     }
 
+    /// Get service instance.
     #[inline]
     pub fn service_instance(&self) -> &str {
         &self.service_instance
@@ -166,13 +177,14 @@ impl TracingContext {
         span_id
     }
 
+    /// Get the last finalized span.
     pub fn last_span(&self) -> Option<SpanObject> {
         self.span_stack
-            .with_finialized(|spans| spans.last().cloned())
+            .with_finalized(|spans| spans.last().cloned())
     }
 
     fn with_spans_mut<T>(&mut self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
-        f(&mut *self.span_stack.finialized.try_write().expect(LOCK_MSG))
+        f(&mut *self.span_stack.finalized.try_write().expect(LOCK_MSG))
     }
 
     pub(crate) fn with_active_span_stack<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
@@ -334,7 +346,8 @@ impl TracingContext {
     /// It converts tracing context into segment object.
     /// This conversion should be done before sending segments into OAP.
     ///
-    /// Notice: The spans will taked, so this method shouldn't be called twice.
+    /// Notice: The spans will be taken, so this method shouldn't be called
+    /// twice.
     pub(crate) fn convert_to_segment_object(&mut self) -> SegmentObject {
         let trace_id = self.trace_id().to_owned();
         let trace_segment_id = self.trace_segment_id().to_owned();
@@ -380,6 +393,7 @@ impl Drop for TracingContext {
     }
 }
 
+/// Cross threads context snapshot.
 #[derive(Debug)]
 pub struct ContextSnapshot {
     trace_id: String,
@@ -389,10 +403,12 @@ pub struct ContextSnapshot {
 }
 
 impl ContextSnapshot {
+    /// Check if the snapshot is created from current context.
     pub fn is_from_current(&self, context: &TracingContext) -> bool {
         !self.trace_segment_id.is_empty() && self.trace_segment_id == context.trace_segment_id()
     }
 
+    /// Check if the snapshot is valid.
     pub fn is_valid(&self) -> bool {
         !self.trace_segment_id.is_empty() && self.span_id > -1 && !self.trace_id.is_empty()
     }

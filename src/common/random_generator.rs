@@ -14,11 +14,15 @@
 // limitations under the License.
 //
 
+//! Random id generator.
+
 use uuid::Uuid;
 
+/// Random id generator.
 pub struct RandomGenerator;
 
 impl RandomGenerator {
+    /// Generate unique id as string.
     pub fn generate() -> String {
         Uuid::new_v4().as_u128().to_string()
     }
