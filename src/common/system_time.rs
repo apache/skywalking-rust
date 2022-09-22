@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Get system time, as mills seconds.
+
 use cfg_if::cfg_if;
 
 pub(crate) enum TimePeriod {

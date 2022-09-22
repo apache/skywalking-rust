@@ -91,7 +91,7 @@ async fn handle_ping(
         .await
         .unwrap();
     }
-    Ok(Response::new(Body::from("hoge")))
+    Ok(Response::new(Body::from("ok")))
 }
 
 async fn producer_response(
@@ -147,7 +147,7 @@ async fn handle_pong(_req: Request<Body>) -> Result<Response<Body>, Infallible> 
     .unwrap();
     let mut context = tracer::create_trace_context();
     let _span = context.create_entry_span_with_propagation("/pong", &ctx);
-    Ok(Response::new(Body::from("hoge")))
+    Ok(Response::new(Body::from("ok")))
 }
 
 async fn consumer_response(_req: Request<Body>) -> Result<Response<Body>, Infallible> {

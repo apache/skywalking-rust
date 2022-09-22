@@ -14,5 +14,7 @@
 // limitations under the License.
 //
 
+//! Skywalking management api.
+
 pub mod instance;
 pub mod manager;

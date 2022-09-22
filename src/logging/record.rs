@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Log record items.
+
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
     skywalking_proto::v3::{
@@ -24,9 +26,13 @@ use crate::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Log record type of [LogRecord];
 pub enum RecordType {
+    /// Text type.
     Text,
+    /// Json type.
     Json,
+    /// Yaml type.
     Yaml,
 }
 
@@ -36,6 +42,7 @@ impl Default for RecordType {
     }
 }
 
+/// The builder of [LogData];
 #[derive(Default)]
 pub struct LogRecord {
     time: Option<SystemTime>,
@@ -50,34 +57,43 @@ pub struct LogRecord {
 }
 
 impl LogRecord {
+    /// New default [LogRecord];
     #[inline]
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Use custom time rather than now time.
     #[inline]
-    pub fn custome_time(mut self, time: SystemTime) -> Self {
+    pub fn custom_time(mut self, time: SystemTime) -> Self {
         self.time = Some(time);
         self
     }
 
+    /// Not set the log time, OAP server would use the received timestamp as
+    /// log's timestamp, or relies on the OAP server analyzer.
     #[inline]
     pub fn ignore_time(mut self) -> Self {
         self.is_ignore_time = true;
         self
     }
 
+    /// The logic name represents the endpoint, which logs belong.
     #[inline]
     pub fn endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.endpoint = endpoint.into();
         self
     }
 
+    /// The available tags. OAP server could provide search/analysis
+    /// capabilities based on these.
     pub fn add_tag(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.tags.push((key.into(), value.into()));
         self
     }
 
+    /// The available tags. OAP server could provide search/analysis
+    /// capabilities based on these.
     pub fn add_tags<K, V, I>(mut self, tags: I) -> Self
     where
         K: Into<String>,
@@ -89,22 +105,27 @@ impl LogRecord {
         self
     }
 
+    /// Logs with trace context.
     pub fn with_tracing_context(mut self, tracing_context: &TracingContext) -> Self {
         self.trace_id = Some(tracing_context.trace_id().to_owned());
         self.trace_segment_id = Some(tracing_context.trace_segment_id().to_owned());
         self
     }
 
+    /// The span should be unique in the whole segment.
     pub fn with_span(mut self, span: &Span) -> Self {
         self.span_id = Some(span.with_span_object(|span| span.span_id));
         self
     }
 
+    /// A type to match analyzer(s) at the OAP server.
+    /// The data could be analyzed at the client side, but could be partial.
     pub fn record_type(mut self, record_type: RecordType) -> Self {
         self.record_type = record_type;
         self
     }
 
+    /// Log content.
     pub fn content(mut self, content: impl Into<String>) -> Self {
         self.content = content.into();
         self

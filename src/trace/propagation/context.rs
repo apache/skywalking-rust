@@ -14,8 +14,12 @@
 // limitations under the License.
 //
 
+//! Propagation context.
+
+/// The key of propagation header.
 pub static SKYWALKING_HTTP_CONTEXT_HEADER_KEY: &str = "sw8";
 
+/// Propagation context.
 #[derive(Debug)]
 pub struct PropagationContext {
     /// It defines whether next span should be trace or not.
@@ -52,6 +56,7 @@ pub struct PropagationContext {
 /// In general, this context will be used if you create new TraceContext after
 /// received decoded context that should be packed in `sw8` header.
 impl PropagationContext {
+    /// New [PropagationContext].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         do_sample: bool,

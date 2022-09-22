@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Manager methods.
+
 use super::instance::Properties;
 use crate::reporter::{CollectItem, DynReport, Report};
 use std::{
@@ -29,6 +31,7 @@ use tokio::{
     time,
 };
 
+/// Manager handles skywalking management operations, integrate with reporter.
 pub struct Manager {
     service_name: String,
     instance_name: String,
@@ -49,20 +52,24 @@ impl Manager {
         }
     }
 
+    /// Get service name.
     pub fn service_name(&self) -> &str {
         &self.service_name
     }
 
+    /// Get instance name.
     pub fn instance_name(&self) -> &str {
         &self.instance_name
     }
 
+    /// Report instance properties.
     pub fn report_properties(&self, properties: Properties) {
         let props = properties
             .convert_to_instance_properties(self.service_name.clone(), self.instance_name.clone());
         self.reporter.report(CollectItem::Instance(Box::new(props)));
     }
 
+    /// Do keep alive (heartbeat), with the interval, will be run in background.
     pub fn keep_alive(&self, interval: Duration) -> KeepAlive {
         let service_name = self.service_name.clone();
         let instance_name = self.instance_name.clone();
@@ -85,6 +92,7 @@ impl Manager {
     }
 }
 
+/// Handle of [Manager::keep_alive].
 pub struct KeepAlive {
     handle: JoinHandle<()>,
 }

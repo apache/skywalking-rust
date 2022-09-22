@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Logger and global methods.
+
 use super::record::LogRecord;
 use crate::reporter::{CollectItem, DynReport, Report};
 use std::sync::Arc;
@@ -24,13 +26,13 @@ static GLOBAL_LOGGER: OnceCell<Logger> = OnceCell::const_new();
 /// Set the global logger.
 pub fn set_global_logger(logger: Logger) {
     if GLOBAL_LOGGER.set(logger).is_err() {
-        panic!("global logger has setted")
+        panic!("global logger has set")
     }
 }
 
 /// Get the global logger.
 pub fn global_logger() -> &'static Logger {
-    GLOBAL_LOGGER.get().expect("global logger haven't setted")
+    GLOBAL_LOGGER.get().expect("global logger haven't set")
 }
 
 /// Log by global logger.
@@ -38,12 +40,13 @@ pub fn log(record: LogRecord) {
     global_logger().log(record);
 }
 
-pub struct Inner {
+struct Inner {
     service_name: String,
     instance_name: String,
     reporter: Box<DynReport>,
 }
 
+/// Logger handles skywalking logging operations, integrate with reporter.
 #[derive(Clone)]
 pub struct Logger {
     inner: Arc<Inner>,
@@ -65,14 +68,17 @@ impl Logger {
         }
     }
 
+    /// Get service name.
     pub fn service_name(&self) -> &str {
         &self.inner.service_name
     }
 
+    /// Get instance name.
     pub fn instance_name(&self) -> &str {
         &self.inner.instance_name
     }
 
+    /// Do logging via reporter.
     pub fn log(&self, record: LogRecord) {
         let data = record.convert_to_log_data(
             self.service_name().to_owned(),

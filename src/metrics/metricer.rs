@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Metricer methods.
+
 use super::meter::{MeterId, Transform};
 use crate::reporter::{CollectItem, DynReport, Report};
 use std::{
@@ -31,6 +33,8 @@ use tokio::{
     time::interval,
 };
 
+/// Metricer handles skywalking metrics operations, integrate with reporter, can
+/// be register with multiple [Transform].
 pub struct Metricer {
     service_name: String,
     instance_name: String,
@@ -55,18 +59,22 @@ impl Metricer {
         }
     }
 
+    /// Get service name.
     pub fn service_name(&self) -> &str {
         &self.service_name
     }
 
+    /// Get instance name.
     pub fn instance_name(&self) -> &str {
         &self.instance_name
     }
 
+    /// Set report interval, default is 20s.
     pub fn set_report_interval(&mut self, report_interval: Duration) {
         self.report_interval = report_interval;
     }
 
+    /// Register new [Transform], and return it with [Arc] wrap.
     pub fn register<T: Transform + 'static>(&mut self, transform: T) -> Arc<T> {
         let transform = Arc::new(transform);
         self.meter_map
@@ -74,6 +82,8 @@ impl Metricer {
         transform
     }
 
+    /// Boot the reporting with the report interval previous set, will be run in
+    /// background.
     pub fn boot(self) -> Booting {
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
@@ -104,12 +114,14 @@ impl Metricer {
     }
 }
 
+/// handle of [Metricer::boot].
 pub struct Booting {
     handle: JoinHandle<()>,
     shutdown_tx: mpsc::Sender<()>,
 }
 
 impl Booting {
+    /// Shutdown the metrics reporting.
     pub async fn shutdown(self) -> crate::Result<()> {
         self.shutdown_tx.send(()).await.unwrap();
         Ok(self.await?)

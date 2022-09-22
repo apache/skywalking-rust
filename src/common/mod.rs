@@ -14,5 +14,7 @@
 // limitations under the License.
 //
 
+//! Common utils.
+
 pub mod random_generator;
 pub(crate) mod system_time;

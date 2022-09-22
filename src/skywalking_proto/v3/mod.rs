@@ -13,6 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
+//! Generated code of `skywalking.v3`, by `tonic`.
+
+#![allow(missing_docs)]
+
 use crate::common::system_time::{fetch_time, TimePeriod};
 
 tonic::include_proto!("skywalking.v3");

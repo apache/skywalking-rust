@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+//! Crate errors.
+
 pub(crate) const LOCK_MSG: &str = "should not cross threads/coroutines (locked)";
 
 /// Skywalking Result.
@@ -22,21 +24,27 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Skywalking Error.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Decode propagation failed.
     #[error("decode propagation failed: {0}")]
     DecodePropagation(&'static str),
 
+    /// Reporter shutdown failed.
     #[error("reporter shutdown failed: {0}")]
     ReporterShutdown(String),
 
+    /// Tonic transport failed.
     #[error("tonic transport failed: {0}")]
     TonicTransport(#[from] tonic::transport::Error),
 
+    /// Tonic status error.
     #[error("tonic status: {0}")]
     TonicStatus(#[from] tonic::Status),
 
+    /// Tokio join failed.
     #[error("tokio join failed: {0}")]
     TokioJoin(#[from] tokio::task::JoinError),
 
+    /// Other uncovered errors.
     #[error(transparent)]
     Other(#[from] Box<dyn std::error::Error + Send + 'static>),
 }
