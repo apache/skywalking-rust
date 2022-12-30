@@ -48,7 +48,10 @@ use tokio::{
 };
 use tonic::{
     async_trait,
+    metadata::{Ascii, MetadataValue},
+    service::{interceptor::InterceptedService, Interceptor},
     transport::{self, Channel, Endpoint},
+    Request, Status,
 };
 
 /// Special purpose, used for user-defined production operations. Generally, it
@@ -111,13 +114,29 @@ impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
     }
 }
 
+#[derive(Default, Clone)]
+struct CustomInterceptor {
+    authentication: Option<Arc<String>>,
+    custom_intercept: Option<Arc<dyn Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync>>,
+}
+
+impl Interceptor for CustomInterceptor {
+    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, Status> {
+        if let Some(authentication) = &self.authentication {
+            if let Ok(authentication) = authentication.parse::<MetadataValue<Ascii>>() {
+                request
+                    .metadata_mut()
+                    .insert("authentication", authentication);
+            }
+        }
+        if let Some(custom_intercept) = &self.custom_intercept {
+            request = custom_intercept(request)?;
+        }
+        Ok(request)
+    }
+}
+
 struct Inner<P, C> {
-    trace_client: Mutex<TraceSegmentReportServiceClient<Channel>>,
-    log_client: Mutex<LogReportServiceClient<Channel>>,
-    meter_client: Mutex<MeterReportServiceClient<Channel>>,
-    #[cfg(feature = "management")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
-    management_client: Mutex<ManagementServiceClient<Channel>>,
     producer: P,
     consumer: Mutex<Option<C>>,
     is_reporting: AtomicBool,
@@ -131,6 +150,8 @@ pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
 pub struct GrpcReporter<P, C> {
     inner: Arc<Inner<P, C>>,
     err_handle: Arc<Option<Box<DynErrHandle>>>,
+    channel: Channel,
+    interceptor: CustomInterceptor,
 }
 
 impl GrpcReporter<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
@@ -156,17 +177,14 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
     pub fn new_with_pc(channel: Channel, producer: P, consumer: C) -> Self {
         Self {
             inner: Arc::new(Inner {
-                trace_client: Mutex::new(TraceSegmentReportServiceClient::new(channel.clone())),
-                log_client: Mutex::new(LogReportServiceClient::new(channel.clone())),
-                #[cfg(feature = "management")]
-                management_client: Mutex::new(ManagementServiceClient::new(channel.clone())),
-                meter_client: Mutex::new(MeterReportServiceClient::new(channel)),
                 producer,
                 consumer: Mutex::new(Some(consumer)),
                 is_reporting: Default::default(),
                 is_closed: Default::default(),
             }),
             err_handle: Default::default(),
+            channel,
+            interceptor: Default::default(),
         }
     }
 
@@ -176,6 +194,22 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
         handle: impl Fn(Box<dyn Error>) + Send + Sync + 'static,
     ) -> Self {
         self.err_handle = Arc::new(Some(Box::new(handle)));
+        self
+    }
+
+    /// Set the authentication header value. By default, the authentication is
+    /// not set.
+    pub fn with_authentication(mut self, authentication: impl Into<String>) -> Self {
+        self.interceptor.authentication = Some(Arc::new(authentication.into()));
+        self
+    }
+
+    /// Set the custom intercept. By default, the custom intercept is not set.
+    pub fn with_custom_intercept(
+        mut self,
+        custom_intercept: impl Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync + 'static,
+    ) -> Self {
+        self.interceptor.custom_intercept = Some(Arc::new(custom_intercept));
         self
     }
 
@@ -193,9 +227,28 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
             rb: ReporterAndBuffer {
                 inner: Arc::clone(&self.inner),
                 status_handle: None,
+
                 trace_buffer: Default::default(),
                 log_buffer: Default::default(),
                 meter_buffer: Default::default(),
+
+                trace_client: TraceSegmentReportServiceClient::with_interceptor(
+                    self.channel.clone(),
+                    self.interceptor.clone(),
+                ),
+                log_client: LogReportServiceClient::with_interceptor(
+                    self.channel.clone(),
+                    self.interceptor.clone(),
+                ),
+                meter_client: MeterReportServiceClient::with_interceptor(
+                    self.channel.clone(),
+                    self.interceptor.clone(),
+                ),
+                #[cfg(feature = "management")]
+                management_client: ManagementServiceClient::with_interceptor(
+                    self.channel.clone(),
+                    self.interceptor.clone(),
+                ),
             },
             shutdown_signal: Box::pin(pending()),
             consumer: self.inner.consumer.lock().await.take().unwrap(),
@@ -208,6 +261,8 @@ impl<P, C> Clone for GrpcReporter<P, C> {
         Self {
             inner: self.inner.clone(),
             err_handle: self.err_handle.clone(),
+            channel: self.channel.clone(),
+            interceptor: self.interceptor.clone(),
         }
     }
 }
@@ -227,9 +282,17 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C>
 struct ReporterAndBuffer<P, C> {
     inner: Arc<Inner<P, C>>,
     status_handle: Option<Box<dyn Fn(tonic::Status) + Send + 'static>>,
+
     trace_buffer: LinkedList<SegmentObject>,
     log_buffer: LinkedList<LogData>,
     meter_buffer: LinkedList<MeterData>,
+
+    trace_client: TraceSegmentReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    log_client: LogReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    meter_client: MeterReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    #[cfg(feature = "management")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
+    management_client: ManagementServiceClient<InterceptedService<Channel, CustomInterceptor>>,
 }
 
 impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
@@ -248,10 +311,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
             #[cfg(feature = "management")]
             CollectItem::Instance(item) => {
                 if let Err(e) = self
-                    .inner
                     .management_client
-                    .lock()
-                    .await
                     .report_instance_properties(*item)
                     .await
                 {
@@ -262,14 +322,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
             }
             #[cfg(feature = "management")]
             CollectItem::Ping(item) => {
-                if let Err(e) = self
-                    .inner
-                    .management_client
-                    .lock()
-                    .await
-                    .keep_alive(*item)
-                    .await
-                {
+                if let Err(e) = self.management_client.keep_alive(*item).await {
                     if let Some(status_handle) = &self.status_handle {
                         status_handle(e);
                     }
@@ -279,14 +332,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
 
         if !self.trace_buffer.is_empty() {
             let buffer = take(&mut self.trace_buffer);
-            if let Err(e) = self
-                .inner
-                .trace_client
-                .lock()
-                .await
-                .collect(stream::iter(buffer))
-                .await
-            {
+            if let Err(e) = self.trace_client.collect(stream::iter(buffer)).await {
                 if let Some(status_handle) = &self.status_handle {
                     status_handle(e);
                 }
@@ -294,14 +340,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
         }
         if !self.log_buffer.is_empty() {
             let buffer = take(&mut self.log_buffer);
-            if let Err(e) = self
-                .inner
-                .log_client
-                .lock()
-                .await
-                .collect(stream::iter(buffer))
-                .await
-            {
+            if let Err(e) = self.log_client.collect(stream::iter(buffer)).await {
                 if let Some(status_handle) = &self.status_handle {
                     status_handle(e);
                 }
@@ -310,14 +349,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
 
         if !self.meter_buffer.is_empty() {
             let buffer = take(&mut self.meter_buffer);
-            if let Err(e) = self
-                .inner
-                .meter_client
-                .lock()
-                .await
-                .collect(stream::iter(buffer))
-                .await
-            {
+            if let Err(e) = self.meter_client.collect(stream::iter(buffer)).await {
                 if let Some(status_handle) = &self.status_handle {
                     status_handle(e);
                 }

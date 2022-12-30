@@ -17,6 +17,7 @@
 //! Generated code of `skywalking.v3`, by `tonic`.
 
 #![allow(missing_docs)]
+#![allow(rustdoc::invalid_html_tags)]
 
 use crate::common::system_time::{fetch_time, TimePeriod};
 
