@@ -40,6 +40,7 @@ impl PrintReporter {
 }
 
 impl Report for PrintReporter {
+    #[allow(clippy::print_stdout)]
     fn report(&self, items: CollectItem) {
         match items {
             CollectItem::Trace(data) => {
