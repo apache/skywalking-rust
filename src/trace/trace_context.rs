@@ -52,15 +52,15 @@ impl SpanStack {
     }
 
     pub(crate) fn with_finalized_mut<T>(&self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
-        f(&mut *self.finalized.try_write().expect(LOCK_MSG))
+        f(&mut self.finalized.try_write().expect(LOCK_MSG))
     }
 
     pub(crate) fn with_active<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {
-        f(&*self.active.try_read().expect(LOCK_MSG))
+        f(&self.active.try_read().expect(LOCK_MSG))
     }
 
     pub(crate) fn with_active_mut<T>(&self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
-        f(&mut *self.active.try_write().expect(LOCK_MSG))
+        f(&mut self.active.try_write().expect(LOCK_MSG))
     }
 
     fn pop_active(&self, index: usize) -> Option<SpanObject> {
@@ -184,7 +184,7 @@ impl TracingContext {
     }
 
     fn with_spans_mut<T>(&mut self, f: impl FnOnce(&mut Vec<SpanObject>) -> T) -> T {
-        f(&mut *self.span_stack.finalized.try_write().expect(LOCK_MSG))
+        f(&mut self.span_stack.finalized.try_write().expect(LOCK_MSG))
     }
 
     pub(crate) fn with_active_span_stack<T>(&self, f: impl FnOnce(&Vec<SpanObject>) -> T) -> T {

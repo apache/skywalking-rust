@@ -144,6 +144,8 @@ async fn handle_metric(mut metricer: Metricer) {
 async fn main() -> Result<(), Box<dyn Error>> {
     // Connect to skywalking oap server.
     let reporter = GrpcReporter::connect("http://0.0.0.0:11800").await?;
+    // Optional authentication, based on backend setting.
+    let reporter = reporter.with_authentication("<TOKEN>");
 
     // Spawn the reporting in background, with listening the graceful shutdown signal.
     let handle = reporter

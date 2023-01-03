@@ -114,10 +114,12 @@ impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
     }
 }
 
+type DynInterceptHandler = dyn Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync;
+
 #[derive(Default, Clone)]
 struct CustomInterceptor {
     authentication: Option<Arc<String>>,
-    custom_intercept: Option<Arc<dyn Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync>>,
+    custom_intercept: Option<Arc<DynInterceptHandler>>,
 }
 
 impl Interceptor for CustomInterceptor {
