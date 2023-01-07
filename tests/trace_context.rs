@@ -114,7 +114,7 @@ async fn create_span() {
                         logs: Vec::<Log>::new(),
                         skip_analysis: false,
                     };
-                    assert_eq!(context.last_span(), Some(span3_expected));
+                    assert_eq!(context.last_span().as_deref(), Some(&span3_expected));
                 }
 
                 {
@@ -140,7 +140,7 @@ async fn create_span() {
                             logs: Vec::<Log>::new(),
                             skip_analysis: false,
                         };
-                        assert_eq!(context.last_span(), Some(span5_expected));
+                        assert_eq!(context.last_span().as_deref(), Some(&span5_expected));
                     }
                 }
 
@@ -162,7 +162,7 @@ async fn create_span() {
                     logs: expected_log,
                     skip_analysis: false,
                 };
-                assert_eq!(context.last_span(), Some(span1_expected));
+                assert_eq!(context.last_span().as_deref(), Some(&span1_expected));
             }
 
             tracer
