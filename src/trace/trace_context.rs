@@ -179,7 +179,7 @@ impl TracingContext {
     pub fn last_span(&self) -> Option<SpanObjectRef<'_>> {
         RwLockReadGuard::try_map(self.span_stack.finalized(), |spans| spans.last())
             .ok()
-            .map(SpanObjectRef::new)
+            .map(SpanObjectRef)
     }
 
     fn spans_mut(&mut self) -> RwLockWriteGuard<'_, Vec<SpanObject>> {

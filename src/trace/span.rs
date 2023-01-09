@@ -32,48 +32,30 @@ use std::{
 };
 
 /// Wrapper of [SpanObject] immutable reference.
-pub struct SpanObjectRef<'a> {
-    inner: MappedRwLockReadGuard<'a, SpanObject>,
-}
-
-impl<'a> SpanObjectRef<'a> {
-    #[inline]
-    pub(crate) fn new(inner: MappedRwLockReadGuard<'a, SpanObject>) -> Self {
-        Self { inner }
-    }
-}
+pub struct SpanObjectRef<'a>(pub(crate) MappedRwLockReadGuard<'a, SpanObject>);
 
 impl Deref for SpanObjectRef<'_> {
     type Target = SpanObject;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
 /// Wrapper of [SpanObject] mutable reference.
-pub struct SpanObjectMut<'a> {
-    inner: MappedRwLockWriteGuard<'a, SpanObject>,
-}
-
-impl<'a> SpanObjectMut<'a> {
-    #[inline]
-    pub(crate) fn new(inner: MappedRwLockWriteGuard<'a, SpanObject>) -> Self {
-        Self { inner }
-    }
-}
+pub struct SpanObjectMut<'a>(MappedRwLockWriteGuard<'a, SpanObject>);
 
 impl Deref for SpanObjectMut<'_> {
     type Target = SpanObject;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
 impl DerefMut for SpanObjectMut<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        &mut self.0
     }
 }
 
@@ -172,14 +154,14 @@ impl Span {
 
     /// Get immutable span object reference.
     pub fn span_object(&self) -> SpanObjectRef<'_> {
-        SpanObjectRef::new(RwLockReadGuard::map(self.stack.active(), |stack| {
+        SpanObjectRef(RwLockReadGuard::map(self.stack.active(), |stack| {
             &stack[self.index]
         }))
     }
 
     /// Mutable with inner span object.
     pub fn span_object_mut(&mut self) -> SpanObjectMut<'_> {
-        SpanObjectMut::new(RwLockWriteGuard::map(self.stack.active_mut(), |stack| {
+        SpanObjectMut(RwLockWriteGuard::map(self.stack.active_mut(), |stack| {
             &mut stack[self.index]
         }))
     }
