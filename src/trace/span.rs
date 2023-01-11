@@ -19,14 +19,45 @@
 
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
-    error::LOCK_MSG,
     skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
     trace::trace_context::SpanStack,
 };
+use parking_lot::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard,
+};
 use std::{
     fmt::Formatter,
-    sync::{Arc, Weak},
+    ops::{Deref, DerefMut},
+    sync::Arc,
 };
+
+/// Wrapper of [SpanObject] immutable reference.
+pub struct SpanObjectRef<'a>(pub(crate) MappedRwLockReadGuard<'a, SpanObject>);
+
+impl Deref for SpanObjectRef<'_> {
+    type Target = SpanObject;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Wrapper of [SpanObject] mutable reference.
+pub struct SpanObjectMut<'a>(MappedRwLockWriteGuard<'a, SpanObject>);
+
+impl Deref for SpanObjectMut<'_> {
+    type Target = SpanObject;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for SpanObjectMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// Span is a concept that represents trace information for a single RPC.
 /// The Rust SDK supports Entry Span to represent inbound to a service
@@ -66,7 +97,7 @@ use std::{
 #[must_use = "assign a variable name to guard the span not be dropped immediately."]
 pub struct Span {
     index: usize,
-    stack: Weak<SpanStack>,
+    stack: Arc<SpanStack>,
 }
 
 impl std::fmt::Debug for Span {
@@ -75,18 +106,15 @@ impl std::fmt::Debug for Span {
         f.debug_struct("Span")
             .field(
                 "data",
-                match self.stack.upgrade() {
-                    Some(stack) => match stack.active.try_read() {
-                        Ok(spans) => match spans.get(self.index) {
-                            Some(span) => {
-                                span_object = span.clone();
-                                &span_object
-                            }
-                            None => &"<hanged>",
-                        },
-                        Err(_) => &"<locked>",
+                match self.stack.active.try_read() {
+                    Some(spans) => match spans.get(self.index) {
+                        Some(span) => {
+                            span_object = span.clone();
+                            &span_object
+                        }
+                        None => &"<hanged>",
                     },
-                    None => &"<dropped>",
+                    None => &"<locked>",
                 },
             )
             .finish()
@@ -96,7 +124,7 @@ impl std::fmt::Debug for Span {
 const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
-    pub(crate) fn new(index: usize, stack: Weak<SpanStack>) -> Self {
+    pub(crate) fn new(index: usize, stack: Arc<SpanStack>) -> Self {
         Self { index, stack }
     }
 
@@ -124,24 +152,23 @@ impl Span {
         }
     }
 
-    fn upgrade_stack(&self) -> Arc<SpanStack> {
-        self.stack.upgrade().expect("Context has dropped")
-    }
-
-    /// Immutable with inner span object.
-    pub fn with_span_object<T>(&self, f: impl FnOnce(&SpanObject) -> T) -> T {
-        self.upgrade_stack()
-            .with_active(|stack| f(&stack[self.index]))
+    /// Get immutable span object reference.
+    pub fn span_object(&self) -> SpanObjectRef<'_> {
+        SpanObjectRef(RwLockReadGuard::map(self.stack.active(), |stack| {
+            &stack[self.index]
+        }))
     }
 
     /// Mutable with inner span object.
-    pub fn with_span_object_mut<T>(&mut self, f: impl FnOnce(&mut SpanObject) -> T) -> T {
-        f(&mut (self.upgrade_stack().active.try_write().expect(LOCK_MSG))[self.index])
+    pub fn span_object_mut(&mut self) -> SpanObjectMut<'_> {
+        SpanObjectMut(RwLockWriteGuard::map(self.stack.active_mut(), |stack| {
+            &mut stack[self.index]
+        }))
     }
 
     /// Get span id.
     pub fn span_id(&self) -> i32 {
-        self.with_span_object(|span| span.span_id)
+        self.span_object().span_id
     }
 
     /// Add logs to the span.
@@ -151,24 +178,20 @@ impl Span {
         V: Into<String>,
         I: IntoIterator<Item = (K, V)>,
     {
-        self.with_span_object_mut(|span| span.add_log(message))
+        self.span_object_mut().add_log(message)
     }
 
     /// Add tag to the span.
     pub fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.with_span_object_mut(|span| span.add_tag(key, value))
+        self.span_object_mut().add_tag(key, value)
     }
 }
 
 impl Drop for Span {
     /// Set the end time as current time, pop from context active span stack,
     /// and push to context spans.
-    ///
-    /// # Panics
-    ///
-    /// Panic if context is dropped or this span isn't the active span.
     fn drop(&mut self) {
-        self.upgrade_stack().finalize_span(self.index);
+        self.stack.finalize_span(self.index);
     }
 }
 

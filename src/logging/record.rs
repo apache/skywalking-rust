@@ -114,7 +114,7 @@ impl LogRecord {
 
     /// The span should be unique in the whole segment.
     pub fn with_span(mut self, span: &Span) -> Self {
-        self.span_id = Some(span.with_span_object(|span| span.span_id));
+        self.span_id = Some(span.span_id());
         self
     }
 
