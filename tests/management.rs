@@ -31,13 +31,23 @@ use tokio::time::sleep;
 async fn management() {
     let reporter = Arc::new(MockReporter::default());
     let manager = Manager::new("service_name", "instance_name", reporter.clone());
-    manager.keep_alive(Duration::from_secs(60));
+    let handling = manager.report_and_keep_alive(
+        || {
+            let mut props = Properties::new();
+            props.insert_os_info();
+            props
+        },
+        Duration::from_millis(100),
+        3,
+    );
+
+    sleep(Duration::from_secs(1)).await;
+
+    handling.handle().abort();
+
+    sleep(Duration::from_secs(1)).await;
 
     {
-        let mut props = Properties::new();
-        props.insert_os_info();
-        manager.report_properties(props);
-
         let actual_props = reporter.pop_ins_props();
         assert_eq!(actual_props.service, "service_name".to_owned());
         assert_eq!(actual_props.service_instance, "instance_name".to_owned());
@@ -56,7 +66,6 @@ async fn management() {
     }
 
     {
-        sleep(Duration::from_secs(1)).await;
         assert_eq!(
             reporter.pop_ping(),
             InstancePingPkg {
@@ -66,25 +75,72 @@ async fn management() {
             }
         );
     }
+
+    {
+        reporter.pop_ping();
+    }
+
+    {
+        reporter.pop_ins_props();
+    }
+
+    {
+        reporter.pop_ping();
+    }
+
+    {
+        reporter.pop_ping();
+    }
 }
 
 fn kvs_get_value<'a>(kvs: &'a [KeyStringValuePair], key: &str) -> &'a str {
     &kvs.iter().find(|kv| kv.key == key).unwrap().value
 }
 
+#[derive(Debug)]
+enum Item {
+    Properties(InstanceProperties),
+    PingPkg(InstancePingPkg),
+}
+
+impl Item {
+    fn unwrap_properties(self) -> InstanceProperties {
+        match self {
+            Item::Properties(props) => props,
+            Item::PingPkg(_) => panic!("isn't properties"),
+        }
+    }
+
+    fn unwrap_ping_pkg(self) -> InstancePingPkg {
+        match self {
+            Item::Properties(_) => panic!("isn't ping pkg"),
+            Item::PingPkg(p) => p,
+        }
+    }
+}
+
 #[derive(Default, Clone)]
 struct MockReporter {
-    props_items: Arc<Mutex<LinkedList<InstanceProperties>>>,
-    ping_items: Arc<Mutex<LinkedList<InstancePingPkg>>>,
+    items: Arc<Mutex<LinkedList<Item>>>,
 }
 
 impl MockReporter {
     fn pop_ins_props(&self) -> InstanceProperties {
-        self.props_items.try_lock().unwrap().pop_back().unwrap()
+        self.items
+            .try_lock()
+            .unwrap()
+            .pop_front()
+            .unwrap()
+            .unwrap_properties()
     }
 
     fn pop_ping(&self) -> InstancePingPkg {
-        self.ping_items.try_lock().unwrap().pop_back().unwrap()
+        self.items
+            .try_lock()
+            .unwrap()
+            .pop_front()
+            .unwrap()
+            .unwrap_ping_pkg()
     }
 }
 
@@ -92,12 +148,20 @@ impl Report for MockReporter {
     fn report(&self, item: CollectItem) {
         match item {
             CollectItem::Instance(data) => {
-                self.props_items.try_lock().unwrap().push_back(*data);
+                self.items
+                    .try_lock()
+                    .unwrap()
+                    .push_back(Item::Properties(*data));
             }
             CollectItem::Ping(data) => {
-                self.ping_items.try_lock().unwrap().push_back(*data);
+                self.items
+                    .try_lock()
+                    .unwrap()
+                    .push_back(Item::PingPkg(*data));
             }
-            _ => {}
+            _ => {
+                unreachable!("unknown collect item type");
+            }
         }
     }
 }

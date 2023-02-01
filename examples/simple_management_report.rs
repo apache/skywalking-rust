@@ -40,13 +40,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let manager = Manager::new("service", "instance", reporter);
 
-    // Report instance properties.
-    let mut props = Properties::default();
-    props.insert_os_info();
-    manager.report_properties(props);
-
-    // Keep alive
-    manager.keep_alive(Duration::from_secs(10));
+    // Report instance properties and keep alive.
+    manager.report_and_keep_alive(
+        || {
+            let mut props = Properties::default();
+            props.insert_os_info();
+            props
+        },
+        Duration::from_secs(30),
+        10,
+    );
 
     handle.await?;
 
