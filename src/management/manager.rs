@@ -157,6 +157,13 @@ pub struct ReportAndKeepAlive {
     handle: JoinHandle<()>,
 }
 
+impl ReportAndKeepAlive {
+    /// Get the inner tokio join handle.
+    pub fn handle(&self) -> &JoinHandle<()> {
+        &self.handle
+    }
+}
+
 impl Future for ReportAndKeepAlive {
     type Output = Result<(), JoinError>;
 
