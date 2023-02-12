@@ -27,12 +27,12 @@ use crate::{
         SegmentObject,
     },
 };
-use futures_util::stream;
+use async_stream::stream;
+use futures_core::Stream;
+use futures_util::future::{try_join_all, TryJoinAll};
 use std::{
-    collections::LinkedList,
     error::Error,
     future::{pending, Future},
-    mem::take,
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -42,7 +42,10 @@ use std::{
 };
 use tokio::{
     select,
-    sync::{mpsc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Mutex,
+    },
     task::JoinHandle,
     try_join,
 };
@@ -138,9 +141,7 @@ impl Interceptor for CustomInterceptor {
     }
 }
 
-struct Inner<P, C> {
-    producer: P,
-    consumer: Mutex<Option<C>>,
+struct State {
     is_reporting: AtomicBool,
     is_closed: AtomicBool,
 }
@@ -150,8 +151,10 @@ pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
 
 /// Reporter which will report to Skywalking OAP server via grpc protocol.
 pub struct GrpcReporter<P, C> {
-    inner: Arc<Inner<P, C>>,
-    err_handle: Arc<Option<Box<DynErrHandle>>>,
+    state: Arc<State>,
+    producer: Arc<P>,
+    consumer: Arc<Mutex<Option<C>>>,
+    err_handle: Option<Arc<DynErrHandle>>,
     channel: Channel,
     interceptor: CustomInterceptor,
 }
@@ -178,12 +181,12 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
     /// usually you can use [GrpcReporter::connect] and [GrpcReporter::new].
     pub fn new_with_pc(channel: Channel, producer: P, consumer: C) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                producer,
-                consumer: Mutex::new(Some(consumer)),
+            state: Arc::new(State {
                 is_reporting: Default::default(),
                 is_closed: Default::default(),
             }),
+            producer: Arc::new(producer),
+            consumer: Arc::new(Mutex::new(Some(consumer))),
             err_handle: Default::default(),
             channel,
             interceptor: Default::default(),
@@ -195,7 +198,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
         mut self,
         handle: impl Fn(Box<dyn Error>) + Send + Sync + 'static,
     ) -> Self {
-        self.err_handle = Arc::new(Some(Box::new(handle)));
+        self.err_handle = Some(Arc::new(handle));
         self
     }
 
@@ -220,40 +223,61 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
     /// # Panics
     ///
     /// Panic if call more than once.
-    pub async fn reporting(&self) -> Reporting<P, C> {
-        if self.inner.is_reporting.swap(true, Ordering::Relaxed) {
+    pub async fn reporting(&self) -> Reporting<C> {
+        if self.state.is_reporting.swap(true, Ordering::Relaxed) {
             panic!("reporting already called");
         }
 
+        let (trace_sender, trace_receiver) = mpsc::channel(255);
+        let (log_sender, log_receiver) = mpsc::channel(255);
+        let (meter_sender, meter_receiver) = mpsc::channel(255);
+
         Reporting {
-            rb: ReporterAndBuffer {
-                inner: Arc::clone(&self.inner),
-                status_handle: None,
+            report_sender: ReportSender {
+                state: Arc::clone(&self.state),
+                inner_report_sender: InnerReportSender {
+                    status_handle: None,
+                    err_handle: self.err_handle.clone(),
+                    trace_sender,
+                    log_sender,
+                    meter_sender,
 
-                trace_buffer: Default::default(),
-                log_buffer: Default::default(),
-                meter_buffer: Default::default(),
+                    #[cfg(feature = "management")]
+                    management_client: ManagementServiceClient::with_interceptor(
+                        self.channel.clone(),
+                        self.interceptor.clone(),
+                    ),
+                },
+                shutdown_signal: Box::pin(pending()),
+                consumer: self.consumer.lock().await.take().unwrap(),
+            },
 
+            trace_receive_reporter: TraceReceiveReporter {
                 trace_client: TraceSegmentReportServiceClient::with_interceptor(
                     self.channel.clone(),
                     self.interceptor.clone(),
                 ),
+                trace_receiver,
+                status_handle: None,
+            },
+
+            log_receive_reporter: LogReceiveReporter {
                 log_client: LogReportServiceClient::with_interceptor(
                     self.channel.clone(),
                     self.interceptor.clone(),
                 ),
+                log_receiver,
+                status_handle: None,
+            },
+
+            meter_receive_reporter: MeterReceiveReporter {
                 meter_client: MeterReportServiceClient::with_interceptor(
                     self.channel.clone(),
                     self.interceptor.clone(),
                 ),
-                #[cfg(feature = "management")]
-                management_client: ManagementServiceClient::with_interceptor(
-                    self.channel.clone(),
-                    self.interceptor.clone(),
-                ),
+                meter_receiver,
+                status_handle: None,
             },
-            shutdown_signal: Box::pin(pending()),
-            consumer: self.inner.consumer.lock().await.take().unwrap(),
         }
     }
 }
@@ -261,7 +285,9 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
 impl<P, C> Clone for GrpcReporter<P, C> {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone(),
+            state: self.state.clone(),
+            producer: self.producer.clone(),
+            consumer: self.consumer.clone(),
             err_handle: self.err_handle.clone(),
             channel: self.channel.clone(),
             interceptor: self.interceptor.clone(),
@@ -271,8 +297,8 @@ impl<P, C> Clone for GrpcReporter<P, C> {
 
 impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C> {
     fn report(&self, item: CollectItem) {
-        if !self.inner.is_closed.load(Ordering::Relaxed) {
-            if let Err(e) = self.inner.producer.produce(item) {
+        if !self.state.is_closed.load(Ordering::Relaxed) {
+            if let Err(e) = self.producer.produce(item) {
                 if let Some(handle) = self.err_handle.as_deref() {
                     handle(e);
                 }
@@ -281,34 +307,41 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C>
     }
 }
 
-struct ReporterAndBuffer<P, C> {
-    inner: Arc<Inner<P, C>>,
-    status_handle: Option<Box<dyn Fn(tonic::Status) + Send + 'static>>,
+struct InnerReportSender {
+    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+    err_handle: Option<Arc<DynErrHandle>>,
 
-    trace_buffer: LinkedList<SegmentObject>,
-    log_buffer: LinkedList<LogData>,
-    meter_buffer: LinkedList<MeterData>,
+    trace_sender: Sender<SegmentObject>,
+    log_sender: Sender<LogData>,
+    meter_sender: Sender<MeterData>,
 
-    trace_client: TraceSegmentReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
-    log_client: LogReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
-    meter_client: MeterReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     #[cfg(feature = "management")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     management_client: ManagementServiceClient<InterceptedService<Channel, CustomInterceptor>>,
 }
 
-impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
+impl InnerReportSender {
     async fn report(&mut self, item: CollectItem) {
-        // TODO Implement batch collect in future.
         match item {
             CollectItem::Trace(item) => {
-                self.trace_buffer.push_back(*item);
+                if let Err(e) = self.trace_sender.try_send(*item) {
+                    if let Some(err_handle) = self.err_handle.as_deref() {
+                        err_handle(Box::new(e));
+                    }
+                }
             }
             CollectItem::Log(item) => {
-                self.log_buffer.push_back(*item);
+                if let Err(e) = self.log_sender.try_send(*item) {
+                    if let Some(err_handle) = self.err_handle.as_deref() {
+                        err_handle(Box::new(e));
+                    }
+                }
             }
             CollectItem::Meter(item) => {
-                self.meter_buffer.push_back(*item);
+                if let Err(e) = self.meter_sender.try_send(*item) {
+                    if let Some(err_handle) = self.err_handle.as_deref() {
+                        err_handle(Box::new(e));
+                    }
+                }
             }
             #[cfg(feature = "management")]
             CollectItem::Instance(item) => {
@@ -331,83 +364,34 @@ impl<P: CollectItemProduce, C: CollectItemConsume> ReporterAndBuffer<P, C> {
                 }
             }
         }
-
-        if !self.trace_buffer.is_empty() {
-            let buffer = take(&mut self.trace_buffer);
-            if let Err(e) = self.trace_client.collect(stream::iter(buffer)).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle(e);
-                }
-            }
-        }
-        if !self.log_buffer.is_empty() {
-            let buffer = take(&mut self.log_buffer);
-            if let Err(e) = self.log_client.collect(stream::iter(buffer)).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle(e);
-                }
-            }
-        }
-
-        if !self.meter_buffer.is_empty() {
-            let buffer = take(&mut self.meter_buffer);
-            if let Err(e) = self.meter_client.collect(stream::iter(buffer)).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle(e);
-                }
-            }
-        }
     }
 }
 
-/// Handle of [GrpcReporter::reporting].
-pub struct Reporting<P, C> {
-    rb: ReporterAndBuffer<P, C>,
+struct ReportSender<C> {
+    state: Arc<State>,
+    inner_report_sender: InnerReportSender,
     consumer: C,
     shutdown_signal: Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>,
 }
 
-impl<P: CollectItemProduce, C: CollectItemConsume> Reporting<P, C> {
-    /// Quit when shutdown_signal received.
-    ///
-    /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
-    pub fn with_graceful_shutdown(
-        mut self,
-        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> Self {
-        self.shutdown_signal = Box::pin(shutdown_signal);
-        self
-    }
-
-    /// Set the failed status handle. By default, the status will not be handle.
-    pub fn with_status_handle(mut self, handle: impl Fn(tonic::Status) + Send + 'static) -> Self {
-        self.rb.status_handle = Some(Box::new(handle));
-        self
-    }
-
-    /// Spawn the reporting in background.
-    pub fn spawn(self) -> ReportingJoinHandle {
-        ReportingJoinHandle {
-            handle: tokio::spawn(self.start()),
-        }
-    }
-
-    /// Start the consume and report task.
-    pub async fn start(self) -> crate::Result<()> {
+impl<C: CollectItemConsume> ReportSender<C> {
+    async fn start(self) -> crate::Result<()> {
         let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
-        let Reporting {
-            mut rb,
-            mut consumer,
+        let ReportSender {
+            state,
+            mut inner_report_sender,
+            consumer: mut collect_item_consumer,
             shutdown_signal,
+            ..
         } = self;
 
         let work_fut = async move {
             loop {
                 select! {
-                    item = consumer.consume() => {
+                    item = collect_item_consumer.consume() => {
                         match item {
                             Ok(Some(item)) => {
-                                rb.report(item).await;
+                                inner_report_sender.report(item).await;
                             }
                             Ok(None) => break,
                             Err(err) => return Err(crate::Error::Other(err)),
@@ -417,13 +401,13 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Reporting<P, C> {
                 }
             }
 
-            rb.inner.is_closed.store(true, Ordering::Relaxed);
+            state.is_closed.store(true, Ordering::Relaxed);
 
             // Flush.
             loop {
-                match consumer.try_consume().await {
+                match collect_item_consumer.try_consume().await {
                     Ok(Some(item)) => {
-                        rb.report(item).await;
+                        inner_report_sender.report(item).await;
                     }
                     Ok(None) => break,
                     Err(err) => return Err(err.into()),
@@ -447,15 +431,153 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Reporting<P, C> {
     }
 }
 
+/// Handle of [GrpcReporter::reporting].
+pub struct Reporting<C> {
+    report_sender: ReportSender<C>,
+    trace_receive_reporter: TraceReceiveReporter,
+    log_receive_reporter: LogReceiveReporter,
+    meter_receive_reporter: MeterReceiveReporter,
+}
+
+impl<C: CollectItemConsume> Reporting<C> {
+    /// Quit when shutdown_signal received.
+    ///
+    /// Accept a `shutdown_signal` argument as a graceful shutdown signal.
+    pub fn with_graceful_shutdown(
+        mut self,
+        shutdown_signal: impl Future<Output = ()> + Send + Sync + 'static,
+    ) -> Self {
+        self.report_sender.shutdown_signal = Box::pin(shutdown_signal);
+        self
+    }
+
+    /// Set the failed status handle. By default, the status will not be handle.
+    pub fn with_status_handle(
+        mut self,
+        handle: impl Fn(tonic::Status) + Send + Sync + 'static,
+    ) -> Self {
+        let handle = Arc::new(handle);
+        self.report_sender.inner_report_sender.status_handle = Some(handle.clone());
+        self.trace_receive_reporter.status_handle = Some(handle.clone());
+        self.log_receive_reporter.status_handle = Some(handle.clone());
+        self.meter_receive_reporter.status_handle = Some(handle);
+        self
+    }
+
+    /// Spawn the reporting in background.
+    pub fn spawn(self) -> ReportingJoinHandle {
+        ReportingJoinHandle {
+            handles: try_join_all(vec![
+                tokio::spawn(self.report_sender.start()),
+                tokio::spawn(self.trace_receive_reporter.start()),
+                tokio::spawn(self.log_receive_reporter.start()),
+                tokio::spawn(self.meter_receive_reporter.start()),
+            ]),
+        }
+    }
+}
+
 /// Handle of [Reporting::spawn].
 pub struct ReportingJoinHandle {
-    handle: JoinHandle<crate::Result<()>>,
+    handles: TryJoinAll<JoinHandle<crate::Result<()>>>,
 }
 
 impl Future for ReportingJoinHandle {
     type Output = crate::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.handle).poll(cx).map(|r| r?)
+        Pin::new(&mut self.handles).poll(cx).map(|rs| {
+            let rs = rs?;
+            for r in rs {
+                r?;
+            }
+            Ok(())
+        })
+    }
+}
+
+struct TraceReceiveReporter {
+    trace_client: TraceSegmentReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    trace_receiver: Receiver<SegmentObject>,
+    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+}
+
+impl TraceReceiveReporter {
+    async fn start(self) -> crate::Result<()> {
+        let TraceReceiveReporter {
+            mut trace_client,
+            trace_receiver,
+            status_handle,
+        } = self;
+
+        let stream = receive_report(trace_receiver);
+        if let Err(e) = trace_client.collect(stream).await {
+            if let Some(status_handle) = status_handle {
+                status_handle(e);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct LogReceiveReporter {
+    log_client: LogReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    log_receiver: Receiver<LogData>,
+    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+}
+
+impl LogReceiveReporter {
+    async fn start(self) -> crate::Result<()> {
+        let LogReceiveReporter {
+            mut log_client,
+            log_receiver,
+            status_handle,
+        } = self;
+
+        let stream = receive_report(log_receiver);
+        if let Err(e) = log_client.collect(stream).await {
+            if let Some(status_handle) = status_handle {
+                status_handle(e);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct MeterReceiveReporter {
+    meter_client: MeterReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
+    meter_receiver: Receiver<MeterData>,
+    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+}
+
+impl MeterReceiveReporter {
+    async fn start(self) -> crate::Result<()> {
+        let MeterReceiveReporter {
+            mut meter_client,
+            meter_receiver,
+            status_handle,
+        } = self;
+
+        let stream = receive_report(meter_receiver);
+        if let Err(e) = meter_client.collect(stream).await {
+            if let Some(status_handle) = status_handle {
+                status_handle(e);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn receive_report<I>(mut receiver: Receiver<I>) -> impl Stream<Item = I> {
+    stream! {
+        loop {
+            match receiver.recv().await {
+                Some(item) => yield item,
+                None => break,
+            }
+        }
     }
 }
