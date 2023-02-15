@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .reporting()
         .await
         .with_graceful_shutdown(future::ready(()))
-        .start()
+        .spawn()
         .await?;
 
     Ok(())
