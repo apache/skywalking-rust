@@ -40,7 +40,6 @@ vendored = ["protobuf-src"]
 mock = []  # For internal integration testing only, do not use.
 
 [dependencies]
-async-stream = "0.3.3"
 base64 = "0.13.0"
 bytes = "1.2.1"
 cfg-if = "1.0.0"
@@ -56,6 +55,7 @@ serde = { version = "1.0.143", features = ["derive"] }
 systemstat = { version = "0.2.0", optional = true }
 thiserror = "1.0.32"
 tokio = { version = "1.20.1", features = ["parking_lot"] }
+tokio-stream = { version = "0.1.9", features = ["time"] }
 tonic = { version = "0.8.0", features = ["codegen"] }
 tracing = "0.1.36"
 uuid = { version = "1.1.2", features = ["serde", "v4"] }

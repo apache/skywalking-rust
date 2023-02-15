@@ -27,7 +27,6 @@ use crate::{
         SegmentObject,
     },
 };
-use async_stream::stream;
 use futures_core::Stream;
 use futures_util::future::{try_join_all, TryJoinAll};
 use std::{
@@ -39,6 +38,7 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
+    time::Duration,
 };
 use tokio::{
     select,
@@ -49,6 +49,7 @@ use tokio::{
     task::JoinHandle,
     try_join,
 };
+use tokio_stream::StreamExt;
 use tonic::{
     async_trait,
     metadata::{Ascii, MetadataValue},
@@ -56,6 +57,11 @@ use tonic::{
     transport::{self, Channel, Endpoint},
     Request, Status,
 };
+use tracing::error;
+
+type DynInterceptHandler = dyn Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync;
+type DynErrHandler = dyn Fn(&str, &dyn Error) + Send + Sync + 'static;
+type DynStatusHandler = dyn Fn(&str, &Status) + Send + Sync + 'static;
 
 /// Special purpose, used for user-defined production operations. Generally, it
 /// does not need to be handled.
@@ -117,8 +123,6 @@ impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
     }
 }
 
-type DynInterceptHandler = dyn Fn(Request<()>) -> Result<Request<()>, Status> + Send + Sync;
-
 #[derive(Default, Clone)]
 struct CustomInterceptor {
     authentication: Option<Arc<String>>,
@@ -143,18 +147,21 @@ impl Interceptor for CustomInterceptor {
 
 struct State {
     is_reporting: AtomicBool,
-    is_closed: AtomicBool,
+    is_closing: AtomicBool,
 }
 
-/// Alias of dyn [Error] callback.
-pub type DynErrHandle = dyn Fn(Box<dyn Error>) + Send + Sync + 'static;
+impl State {
+    fn is_closing(&self) -> bool {
+        self.is_closing.load(Ordering::Relaxed)
+    }
+}
 
 /// Reporter which will report to Skywalking OAP server via grpc protocol.
 pub struct GrpcReporter<P, C> {
     state: Arc<State>,
     producer: Arc<P>,
     consumer: Arc<Mutex<Option<C>>>,
-    err_handle: Option<Arc<DynErrHandle>>,
+    err_handle: Option<Arc<DynErrHandler>>,
     channel: Channel,
     interceptor: CustomInterceptor,
 }
@@ -183,11 +190,13 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
         Self {
             state: Arc::new(State {
                 is_reporting: Default::default(),
-                is_closed: Default::default(),
+                is_closing: Default::default(),
             }),
             producer: Arc::new(producer),
             consumer: Arc::new(Mutex::new(Some(consumer))),
-            err_handle: Default::default(),
+            err_handle: Some(Arc::new(|message, err| {
+                error!(?err, "{}", message);
+            })),
             channel,
             interceptor: Default::default(),
         }
@@ -196,7 +205,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
     /// Set error handle. By default, the error will not be handle.
     pub fn with_err_handle(
         mut self,
-        handle: impl Fn(Box<dyn Error>) + Send + Sync + 'static,
+        handle: impl Fn(&str, &dyn Error) + Send + Sync + 'static,
     ) -> Self {
         self.err_handle = Some(Arc::new(handle));
         self
@@ -236,7 +245,9 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
             report_sender: ReportSender {
                 state: Arc::clone(&self.state),
                 inner_report_sender: InnerReportSender {
-                    status_handle: None,
+                    status_handle: Some(Arc::new(|message, status| {
+                        error!(?status, "{}", message);
+                    })),
                     err_handle: self.err_handle.clone(),
                     trace_sender,
                     log_sender,
@@ -297,10 +308,10 @@ impl<P, C> Clone for GrpcReporter<P, C> {
 
 impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C> {
     fn report(&self, item: CollectItem) {
-        if !self.state.is_closed.load(Ordering::Relaxed) {
+        if !self.state.is_closing() {
             if let Err(e) = self.producer.produce(item) {
-                if let Some(handle) = self.err_handle.as_deref() {
-                    handle(e);
+                if let Some(err_handle) = self.err_handle.as_deref() {
+                    err_handle("report collect item failed", &*e);
                 }
             }
         }
@@ -308,8 +319,8 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C>
 }
 
 struct InnerReportSender {
-    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
-    err_handle: Option<Arc<DynErrHandle>>,
+    status_handle: Option<Arc<DynStatusHandler>>,
+    err_handle: Option<Arc<DynErrHandler>>,
 
     trace_sender: Sender<SegmentObject>,
     log_sender: Sender<LogData>,
@@ -325,21 +336,21 @@ impl InnerReportSender {
             CollectItem::Trace(item) => {
                 if let Err(e) = self.trace_sender.try_send(*item) {
                     if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle(Box::new(e));
+                        err_handle("report trace segment failed", &e as &dyn Error);
                     }
                 }
             }
             CollectItem::Log(item) => {
                 if let Err(e) = self.log_sender.try_send(*item) {
                     if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle(Box::new(e));
+                        err_handle("report log data failed", &e as &dyn Error);
                     }
                 }
             }
             CollectItem::Meter(item) => {
                 if let Err(e) = self.meter_sender.try_send(*item) {
                     if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle(Box::new(e));
+                        err_handle("report meter data failed", &e as &dyn Error);
                     }
                 }
             }
@@ -351,7 +362,7 @@ impl InnerReportSender {
                     .await
                 {
                     if let Some(status_handle) = &self.status_handle {
-                        status_handle(e);
+                        status_handle("Report instance properties failed", &e);
                     }
                 }
             }
@@ -359,7 +370,7 @@ impl InnerReportSender {
             CollectItem::Ping(item) => {
                 if let Err(e) = self.management_client.keep_alive(*item).await {
                     if let Some(status_handle) = &self.status_handle {
-                        status_handle(e);
+                        status_handle("Ping failed", &e);
                     }
                 }
             }
@@ -401,7 +412,7 @@ impl<C: CollectItemConsume> ReportSender<C> {
                 }
             }
 
-            state.is_closed.store(true, Ordering::Relaxed);
+            state.is_closing.store(true, Ordering::Relaxed);
 
             // Flush.
             loop {
@@ -454,7 +465,7 @@ impl<C: CollectItemConsume> Reporting<C> {
     /// Set the failed status handle. By default, the status will not be handle.
     pub fn with_status_handle(
         mut self,
-        handle: impl Fn(tonic::Status) + Send + Sync + 'static,
+        handle: impl Fn(&str, &Status) + Send + Sync + 'static,
     ) -> Self {
         let handle = Arc::new(handle);
         self.report_sender.inner_report_sender.status_handle = Some(handle.clone());
@@ -499,24 +510,19 @@ impl Future for ReportingJoinHandle {
 struct TraceReceiveReporter {
     trace_client: TraceSegmentReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     trace_receiver: Receiver<SegmentObject>,
-    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+    status_handle: Option<Arc<DynStatusHandler>>,
 }
 
 impl TraceReceiveReporter {
-    async fn start(self) -> crate::Result<()> {
-        let TraceReceiveReporter {
-            mut trace_client,
-            trace_receiver,
-            status_handle,
-        } = self;
-
-        let stream = receive_report(trace_receiver);
-        if let Err(e) = trace_client.collect(stream).await {
-            if let Some(status_handle) = status_handle {
-                status_handle(e);
+    async fn start(mut self) -> crate::Result<()> {
+        let rf = ReceiveFrom::new(self.trace_receiver);
+        while let Some(stream) = rf.stream() {
+            if let Err(err) = self.trace_client.collect(stream).await {
+                if let Some(status_handle) = &self.status_handle {
+                    status_handle("Collect trace segment by stream failed", &err);
+                }
             }
         }
-
         Ok(())
     }
 }
@@ -524,24 +530,19 @@ impl TraceReceiveReporter {
 struct LogReceiveReporter {
     log_client: LogReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     log_receiver: Receiver<LogData>,
-    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+    status_handle: Option<Arc<DynStatusHandler>>,
 }
 
 impl LogReceiveReporter {
-    async fn start(self) -> crate::Result<()> {
-        let LogReceiveReporter {
-            mut log_client,
-            log_receiver,
-            status_handle,
-        } = self;
-
-        let stream = receive_report(log_receiver);
-        if let Err(e) = log_client.collect(stream).await {
-            if let Some(status_handle) = status_handle {
-                status_handle(e);
+    async fn start(mut self) -> crate::Result<()> {
+        let rf = ReceiveFrom::new(self.log_receiver);
+        while let Some(stream) = rf.stream() {
+            if let Err(err) = self.log_client.collect(stream).await {
+                if let Some(status_handle) = &self.status_handle {
+                    status_handle("Collect log data by stream failed", &err);
+                }
             }
         }
-
         Ok(())
     }
 }
@@ -549,35 +550,69 @@ impl LogReceiveReporter {
 struct MeterReceiveReporter {
     meter_client: MeterReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     meter_receiver: Receiver<MeterData>,
-    status_handle: Option<Arc<dyn Fn(tonic::Status) + Send + Sync + 'static>>,
+    status_handle: Option<Arc<DynStatusHandler>>,
 }
 
 impl MeterReceiveReporter {
-    async fn start(self) -> crate::Result<()> {
-        let MeterReceiveReporter {
-            mut meter_client,
-            meter_receiver,
-            status_handle,
-        } = self;
-
-        let stream = receive_report(meter_receiver);
-        if let Err(e) = meter_client.collect(stream).await {
-            if let Some(status_handle) = status_handle {
-                status_handle(e);
+    async fn start(mut self) -> crate::Result<()> {
+        let rf = ReceiveFrom::new(self.meter_receiver);
+        while let Some(stream) = rf.stream() {
+            if let Err(err) = self.meter_client.collect(stream).await {
+                if let Some(status_handle) = &self.status_handle {
+                    status_handle("Collect meter data by stream failed", &err);
+                }
             }
         }
-
         Ok(())
     }
 }
 
-fn receive_report<I>(mut receiver: Receiver<I>) -> impl Stream<Item = I> {
-    stream! {
-        loop {
-            match receiver.recv().await {
-                Some(item) => yield item,
-                None => break,
-            }
+struct ReceiveFrom<I> {
+    receiver: Arc<Mutex<Receiver<I>>>,
+    is_closed: Arc<AtomicBool>,
+}
+
+impl<I> ReceiveFrom<I> {
+    fn new(receiver: Receiver<I>) -> Self {
+        Self {
+            receiver: Arc::new(Mutex::new(receiver)),
+            is_closed: Default::default(),
         }
+    }
+
+    fn stream(&self) -> Option<impl Stream<Item = I>> {
+        if self.is_closed.load(Ordering::Relaxed) {
+            return None;
+        }
+
+        let is_closed = self.is_closed.clone();
+        let receiver = self.receiver.clone();
+
+        Some(
+            ReceiveFromStream {
+                receiver,
+                is_closed,
+            }
+            .timeout(Duration::from_secs(30))
+            .map_while(|item| item.ok()),
+        )
+    }
+}
+
+struct ReceiveFromStream<I> {
+    receiver: Arc<Mutex<Receiver<I>>>,
+    is_closed: Arc<AtomicBool>,
+}
+
+impl<I> Stream for ReceiveFromStream<I> {
+    type Item = I;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.receiver.try_lock().unwrap().poll_recv(cx).map(|item| {
+            if item.is_none() {
+                self.is_closed.store(true, Ordering::Relaxed);
+            }
+            item
+        })
     }
 }
