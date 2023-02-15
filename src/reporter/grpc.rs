@@ -63,6 +63,14 @@ type DynInterceptHandler = dyn Fn(Request<()>) -> Result<Request<()>, Status> + 
 type DynErrHandler = dyn Fn(&str, &dyn Error) + Send + Sync + 'static;
 type DynStatusHandler = dyn Fn(&str, &Status) + Send + Sync + 'static;
 
+fn default_err_handle(message: &str, err: &dyn Error) {
+    error!(?err, "{}", message);
+}
+
+fn default_status_handle(message: &str, status: &Status) {
+    error!(?status, "{}", message);
+}
+
 /// Special purpose, used for user-defined production operations. Generally, it
 /// does not need to be handled.
 pub trait CollectItemProduce: Send + Sync + 'static {
@@ -161,7 +169,7 @@ pub struct GrpcReporter<P, C> {
     state: Arc<State>,
     producer: Arc<P>,
     consumer: Arc<Mutex<Option<C>>>,
-    err_handle: Option<Arc<DynErrHandler>>,
+    err_handle: Arc<DynErrHandler>,
     channel: Channel,
     interceptor: CustomInterceptor,
 }
@@ -194,9 +202,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
             }),
             producer: Arc::new(producer),
             consumer: Arc::new(Mutex::new(Some(consumer))),
-            err_handle: Some(Arc::new(|message, err| {
-                error!(?err, "{}", message);
-            })),
+            err_handle: Arc::new(default_err_handle),
             channel,
             interceptor: Default::default(),
         }
@@ -207,7 +213,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
         mut self,
         handle: impl Fn(&str, &dyn Error) + Send + Sync + 'static,
     ) -> Self {
-        self.err_handle = Some(Arc::new(handle));
+        self.err_handle = Arc::new(handle);
         self
     }
 
@@ -241,13 +247,13 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
         let (log_sender, log_receiver) = mpsc::channel(255);
         let (meter_sender, meter_receiver) = mpsc::channel(255);
 
+        let status_handle = Arc::new(default_status_handle);
+
         Reporting {
             report_sender: ReportSender {
                 state: Arc::clone(&self.state),
                 inner_report_sender: InnerReportSender {
-                    status_handle: Some(Arc::new(|message, status| {
-                        error!(?status, "{}", message);
-                    })),
+                    status_handle: Arc::new(default_status_handle),
                     err_handle: self.err_handle.clone(),
                     trace_sender,
                     log_sender,
@@ -269,7 +275,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
                     self.interceptor.clone(),
                 ),
                 trace_receiver,
-                status_handle: None,
+                status_handle: status_handle.clone(),
             },
 
             log_receive_reporter: LogReceiveReporter {
@@ -278,7 +284,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
                     self.interceptor.clone(),
                 ),
                 log_receiver,
-                status_handle: None,
+                status_handle: status_handle.clone(),
             },
 
             meter_receive_reporter: MeterReceiveReporter {
@@ -287,7 +293,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> GrpcReporter<P, C> {
                     self.interceptor.clone(),
                 ),
                 meter_receiver,
-                status_handle: None,
+                status_handle,
             },
         }
     }
@@ -310,17 +316,15 @@ impl<P: CollectItemProduce, C: CollectItemConsume> Report for GrpcReporter<P, C>
     fn report(&self, item: CollectItem) {
         if !self.state.is_closing() {
             if let Err(e) = self.producer.produce(item) {
-                if let Some(err_handle) = self.err_handle.as_deref() {
-                    err_handle("report collect item failed", &*e);
-                }
+                (self.err_handle)("report collect item failed", &*e);
             }
         }
     }
 }
 
 struct InnerReportSender {
-    status_handle: Option<Arc<DynStatusHandler>>,
-    err_handle: Option<Arc<DynErrHandler>>,
+    status_handle: Arc<DynStatusHandler>,
+    err_handle: Arc<DynErrHandler>,
 
     trace_sender: Sender<SegmentObject>,
     log_sender: Sender<LogData>,
@@ -335,23 +339,17 @@ impl InnerReportSender {
         match item {
             CollectItem::Trace(item) => {
                 if let Err(e) = self.trace_sender.try_send(*item) {
-                    if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle("report trace segment failed", &e as &dyn Error);
-                    }
+                    (self.err_handle)("report trace segment failed", &e as &dyn Error);
                 }
             }
             CollectItem::Log(item) => {
                 if let Err(e) = self.log_sender.try_send(*item) {
-                    if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle("report log data failed", &e as &dyn Error);
-                    }
+                    (self.err_handle)("report log data failed", &e as &dyn Error);
                 }
             }
             CollectItem::Meter(item) => {
                 if let Err(e) = self.meter_sender.try_send(*item) {
-                    if let Some(err_handle) = self.err_handle.as_deref() {
-                        err_handle("report meter data failed", &e as &dyn Error);
-                    }
+                    (self.err_handle)("report meter data failed", &e as &dyn Error);
                 }
             }
             #[cfg(feature = "management")]
@@ -361,17 +359,13 @@ impl InnerReportSender {
                     .report_instance_properties(*item)
                     .await
                 {
-                    if let Some(status_handle) = &self.status_handle {
-                        status_handle("Report instance properties failed", &e);
-                    }
+                    (self.status_handle)("Report instance properties failed", &e);
                 }
             }
             #[cfg(feature = "management")]
             CollectItem::Ping(item) => {
                 if let Err(e) = self.management_client.keep_alive(*item).await {
-                    if let Some(status_handle) = &self.status_handle {
-                        status_handle("Ping failed", &e);
-                    }
+                    (self.status_handle)("Ping failed", &e);
                 }
             }
         }
@@ -468,10 +462,10 @@ impl<C: CollectItemConsume> Reporting<C> {
         handle: impl Fn(&str, &Status) + Send + Sync + 'static,
     ) -> Self {
         let handle = Arc::new(handle);
-        self.report_sender.inner_report_sender.status_handle = Some(handle.clone());
-        self.trace_receive_reporter.status_handle = Some(handle.clone());
-        self.log_receive_reporter.status_handle = Some(handle.clone());
-        self.meter_receive_reporter.status_handle = Some(handle);
+        self.report_sender.inner_report_sender.status_handle = handle.clone();
+        self.trace_receive_reporter.status_handle = handle.clone();
+        self.log_receive_reporter.status_handle = handle.clone();
+        self.meter_receive_reporter.status_handle = handle;
         self
     }
 
@@ -510,7 +504,7 @@ impl Future for ReportingJoinHandle {
 struct TraceReceiveReporter {
     trace_client: TraceSegmentReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     trace_receiver: Receiver<SegmentObject>,
-    status_handle: Option<Arc<DynStatusHandler>>,
+    status_handle: Arc<DynStatusHandler>,
 }
 
 impl TraceReceiveReporter {
@@ -518,9 +512,7 @@ impl TraceReceiveReporter {
         let rf = ReceiveFrom::new(self.trace_receiver);
         while let Some(stream) = rf.stream() {
             if let Err(err) = self.trace_client.collect(stream).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle("Collect trace segment by stream failed", &err);
-                }
+                (self.status_handle)("Collect trace segment by stream failed", &err);
             }
         }
         Ok(())
@@ -530,7 +522,7 @@ impl TraceReceiveReporter {
 struct LogReceiveReporter {
     log_client: LogReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     log_receiver: Receiver<LogData>,
-    status_handle: Option<Arc<DynStatusHandler>>,
+    status_handle: Arc<DynStatusHandler>,
 }
 
 impl LogReceiveReporter {
@@ -538,9 +530,7 @@ impl LogReceiveReporter {
         let rf = ReceiveFrom::new(self.log_receiver);
         while let Some(stream) = rf.stream() {
             if let Err(err) = self.log_client.collect(stream).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle("Collect log data by stream failed", &err);
-                }
+                (self.status_handle)("Collect log data by stream failed", &err);
             }
         }
         Ok(())
@@ -550,7 +540,7 @@ impl LogReceiveReporter {
 struct MeterReceiveReporter {
     meter_client: MeterReportServiceClient<InterceptedService<Channel, CustomInterceptor>>,
     meter_receiver: Receiver<MeterData>,
-    status_handle: Option<Arc<DynStatusHandler>>,
+    status_handle: Arc<DynStatusHandler>,
 }
 
 impl MeterReceiveReporter {
@@ -558,9 +548,7 @@ impl MeterReceiveReporter {
         let rf = ReceiveFrom::new(self.meter_receiver);
         while let Some(stream) = rf.stream() {
             if let Err(err) = self.meter_client.collect(stream).await {
-                if let Some(status_handle) = &self.status_handle {
-                    status_handle("Collect meter data by stream failed", &err);
-                }
+                (self.status_handle)("Collect meter data by stream failed", &err);
             }
         }
         Ok(())
