@@ -173,33 +173,6 @@
       incurred by, or claims asserted against, such Contributor by reason
       of your accepting any such warranty or additional liability.
 
-   END OF TERMS AND CONDITIONS
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "{}"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright {yyyy} {name of copyright owner}
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-
 
 =======================================================================
 Apache SkyWalking Subcomponents:
@@ -210,6 +183,37 @@ subcomponents is subject to the terms and conditions of the following
 licenses.
 ========================================================================
 
+
+========================================================================
+ MIT OR Apache-2.0  licenses
+========================================================================
+The following components are provided under the  MIT OR Apache-2.0  License. See project link for details.
+The text of each license is also included in licenses/LICENSE-[project].txt.
+
+    https://crates.io/crates/fnv/1.0.7 1.0.7  MIT OR Apache-2.0 
+
+========================================================================
+Apache-2.0 licenses
+========================================================================
+The following components are provided under the Apache-2.0 License. See project link for details.
+The text of each license is the standard Apache 2.0 license.
+    https://crates.io/crates/bytesize/1.1.0 1.1.0 Apache-2.0
+    https://crates.io/crates/e2e/0.0.0 0.0.0 Apache-2.0
+    https://crates.io/crates/prost/0.11.0 0.11.0 Apache-2.0
+    https://crates.io/crates/prost-build/0.11.1 0.11.1 Apache-2.0
+    https://crates.io/crates/prost-derive/0.11.0 0.11.0 Apache-2.0
+    https://crates.io/crates/prost-types/0.11.1 0.11.1 Apache-2.0
+    https://crates.io/crates/protobuf-src/1.0.5+3.19.3 1.0.5+3.19.3 Apache-2.0
+    https://crates.io/crates/skywalking/0.5.0 0.5.0 Apache-2.0
+    https://crates.io/crates/sync_wrapper/0.1.1 0.1.1 Apache-2.0
+
+========================================================================
+Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT licenses
+========================================================================
+The following components are provided under the Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT License. See project link for details.
+The text of each license is also included in licenses/LICENSE-[project].txt.
+
+    https://crates.io/crates/wasi/0.11.0+wasi-snapshot-preview1 0.11.0+wasi-snapshot-preview1 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT
 
 ========================================================================
 Apache-2.0 OR MIT licenses
@@ -227,7 +231,6 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/either/1.7.0 1.7.0 Apache-2.0 OR MIT
     https://crates.io/crates/fastrand/1.7.0 1.7.0 Apache-2.0 OR MIT
     https://crates.io/crates/fixedbitset/0.4.2 0.4.2 Apache-2.0 OR MIT
-    https://crates.io/crates/fnv/1.0.7 1.0.7 Apache-2.0 OR MIT
     https://crates.io/crates/futures-channel/0.3.21 0.3.21 Apache-2.0 OR MIT
     https://crates.io/crates/futures-core/0.3.21 0.3.21 Apache-2.0 OR MIT
     https://crates.io/crates/futures-macro/0.3.21 0.3.21 Apache-2.0 OR MIT
@@ -236,6 +239,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/futures-util/0.3.21 0.3.21 Apache-2.0 OR MIT
     https://crates.io/crates/getrandom/0.2.7 0.2.7 Apache-2.0 OR MIT
     https://crates.io/crates/hashbrown/0.12.1 0.12.1 Apache-2.0 OR MIT
+    https://crates.io/crates/heck/0.3.3 0.3.3 Apache-2.0 OR MIT
     https://crates.io/crates/heck/0.4.0 0.4.0 Apache-2.0 OR MIT
     https://crates.io/crates/hermit-abi/0.1.19 0.1.19 Apache-2.0 OR MIT
     https://crates.io/crates/http/0.2.8 0.2.8 Apache-2.0 OR MIT
@@ -267,6 +271,8 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/portable-atomic/0.3.13 0.3.13 Apache-2.0 OR MIT
     https://crates.io/crates/ppv-lite86/0.2.16 0.2.16 Apache-2.0 OR MIT
     https://crates.io/crates/prettyplease/0.1.15 0.1.15 Apache-2.0 OR MIT
+    https://crates.io/crates/proc-macro-error/1.0.4 1.0.4 Apache-2.0 OR MIT
+    https://crates.io/crates/proc-macro-error-attr/1.0.4 1.0.4 Apache-2.0 OR MIT
     https://crates.io/crates/proc-macro2/1.0.40 1.0.40 Apache-2.0 OR MIT
     https://crates.io/crates/quote/1.0.20 1.0.20 Apache-2.0 OR MIT
     https://crates.io/crates/rand/0.8.5 0.8.5 Apache-2.0 OR MIT
@@ -281,6 +287,8 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/signal-hook-registry/1.4.0 1.4.0 Apache-2.0 OR MIT
     https://crates.io/crates/smallvec/1.9.0 1.9.0 Apache-2.0 OR MIT
     https://crates.io/crates/socket2/0.4.4 0.4.4 Apache-2.0 OR MIT
+    https://crates.io/crates/structopt/0.3.26 0.3.26 Apache-2.0 OR MIT
+    https://crates.io/crates/structopt-derive/0.4.18 0.4.18 Apache-2.0 OR MIT
     https://crates.io/crates/syn/1.0.98 1.0.98 Apache-2.0 OR MIT
     https://crates.io/crates/tempfile/3.3.0 3.3.0 Apache-2.0 OR MIT
     https://crates.io/crates/thiserror/1.0.32 1.0.32 Apache-2.0 OR MIT
@@ -288,7 +296,11 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/time/0.3.14 0.3.14 Apache-2.0 OR MIT
     https://crates.io/crates/tokio-io-timeout/1.2.0 1.2.0 Apache-2.0 OR MIT
     https://crates.io/crates/unicode-ident/1.0.1 1.0.1 Apache-2.0 OR MIT
+    https://crates.io/crates/unicode-segmentation/1.9.0 1.9.0 Apache-2.0 OR MIT
+    https://crates.io/crates/unicode-width/0.1.9 0.1.9 Apache-2.0 OR MIT
     https://crates.io/crates/uuid/1.1.2 1.1.2 Apache-2.0 OR MIT
+    https://crates.io/crates/vec_map/0.8.2 0.8.2 Apache-2.0 OR MIT
+    https://crates.io/crates/version_check/0.9.4 0.9.4 Apache-2.0 OR MIT
     https://crates.io/crates/winapi/0.3.9 0.3.9 Apache-2.0 OR MIT
     https://crates.io/crates/winapi-i686-pc-windows-gnu/0.4.0 0.4.0 Apache-2.0 OR MIT
     https://crates.io/crates/winapi-x86_64-pc-windows-gnu/0.4.0 0.4.0 Apache-2.0 OR MIT
@@ -300,17 +312,28 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/windows_x86_64_msvc/0.36.1 0.36.1 Apache-2.0 OR MIT
 
 ========================================================================
+BSD-3-Clause licenses
+========================================================================
+The following components are provided under the BSD-3-Clause License. See project link for details.
+The text of each license is also included in licenses/LICENSE-[project].txt.
+
+    https://crates.io/crates/instant/0.1.12 0.1.12 BSD-3-Clause
+
+========================================================================
 MIT licenses
 ========================================================================
 The following components are provided under the MIT License. See project link for details.
 The text of each license is also included in licenses/LICENSE-[project].txt.
 
+    https://crates.io/crates/ansi_term/0.12.1 0.12.1 MIT
     https://crates.io/crates/async-stream/0.3.3 0.3.3 MIT
     https://crates.io/crates/async-stream-impl/0.3.3 0.3.3 MIT
+    https://crates.io/crates/atty/0.2.14 0.2.14 MIT
     https://crates.io/crates/autotools/0.2.5 0.2.5 MIT
     https://crates.io/crates/axum/0.5.11 0.5.11 MIT
     https://crates.io/crates/axum-core/0.2.6 0.2.6 MIT
     https://crates.io/crates/bytes/1.2.1 1.2.1 MIT
+    https://crates.io/crates/clap/2.34.0 2.34.0 MIT
     https://crates.io/crates/h2/0.3.13 0.3.13 MIT
     https://crates.io/crates/hostname/0.3.1 0.3.1 MIT
     https://crates.io/crates/http-body/0.4.5 0.4.5 MIT
@@ -321,6 +344,8 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/nom/7.1.1 7.1.1 MIT
     https://crates.io/crates/redox_syscall/0.2.13 0.2.13 MIT
     https://crates.io/crates/slab/0.4.6 0.4.6 MIT
+    https://crates.io/crates/strsim/0.8.0 0.8.0 MIT
+    https://crates.io/crates/textwrap/0.11.0 0.11.0 MIT
     https://crates.io/crates/tokio/1.20.1 1.20.1 MIT
     https://crates.io/crates/tokio-macros/1.8.0 1.8.0 MIT
     https://crates.io/crates/tokio-stream/0.1.9 0.1.9 MIT
@@ -340,28 +365,6 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/which/4.2.5 4.2.5 MIT
 
 ========================================================================
-Apache-2.0 licenses
-========================================================================
-The following components are provided under the Apache-2.0 License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
-    https://crates.io/crates/bytesize/1.1.0 1.1.0 Apache-2.0
-    https://crates.io/crates/prost/0.11.0 0.11.0 Apache-2.0
-    https://crates.io/crates/prost-build/0.11.1 0.11.1 Apache-2.0
-    https://crates.io/crates/prost-derive/0.11.0 0.11.0 Apache-2.0
-    https://crates.io/crates/prost-types/0.11.1 0.11.1 Apache-2.0
-    https://crates.io/crates/protobuf-src/1.0.5+3.19.3 1.0.5+3.19.3 Apache-2.0
-    https://crates.io/crates/sync_wrapper/0.1.1 0.1.1 Apache-2.0
-
-========================================================================
-BSD-3-Clause licenses
-========================================================================
-The following components are provided under the BSD-3-Clause License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
-    https://crates.io/crates/instant/0.1.12 0.1.12 BSD-3-Clause
-
-========================================================================
 MIT OR Unlicense licenses
 ========================================================================
 The following components are provided under the MIT OR Unlicense License. See project link for details.
@@ -377,10 +380,3 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 
     https://crates.io/crates/systemstat/0.2.0 0.2.0 Unlicense
 
-========================================================================
-Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT licenses
-========================================================================
-The following components are provided under the Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
-    https://crates.io/crates/wasi/0.11.0+wasi-snapshot-preview1 0.11.0+wasi-snapshot-preview1 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT

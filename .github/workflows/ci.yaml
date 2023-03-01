@@ -50,13 +50,23 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Check License Header
-        uses: apache/skywalking-eyes/header/@501a28d2fb4a9b962661987e50cf0219631b32ff
+        uses: apache/skywalking-eyes/header/@0955592f241b73f443201d40e3995c193dbf462b
         with:
           config: .github/licenserc.yaml
       - name: Check Dependencies License
-        uses: apache/skywalking-eyes/dependency/@501a28d2fb4a9b962661987e50cf0219631b32ff
+        uses: apache/skywalking-eyes/dependency/@0955592f241b73f443201d40e3995c193dbf462b
         with:
           config: .github/licenserc.yaml
+      - name: Check Dependencies Licenses Summary
+        run: |
+          go install github.com/apache/skywalking-eyes/cmd/license-eye@0955592f241b73f443201d40e3995c193dbf462b
+          license-eye dependency resolve --summary ./dist-material/LICENSE.tpl -c .github/licenserc.yaml || exit 1
+          if [ ! -z "$(git diff -U0 ./dist-material/LICENSE)" ]; then
+            echo "LICENSE file is not updated correctly"
+            git diff -U0 ./dist-material/LICENSE
+            exit 1
+          fi
+
 
   fmt:
     runs-on: ubuntu-20.04
