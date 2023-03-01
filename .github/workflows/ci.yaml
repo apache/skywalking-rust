@@ -49,6 +49,8 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
+      - name: Cargo minimal versions
+        run: cargo +nightly -Z minimal-versions generate-lockfile
       - name: Check License Header
         uses: apache/skywalking-eyes/header/@0955592f241b73f443201d40e3995c193dbf462b
         with:
