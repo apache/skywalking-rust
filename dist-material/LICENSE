@@ -196,7 +196,7 @@ The text of each license is the standard Apache 2.0 license.
     https://crates.io/crates/prost-derive/0.11.0 0.11.0 Apache-2.0
     https://crates.io/crates/prost-types/0.11.0 0.11.0 Apache-2.0
     https://crates.io/crates/protobuf-src/1.0.5+3.19.3 1.0.5+3.19.3 Apache-2.0
-    https://crates.io/crates/skywalking/0.5.0 0.5.0 Apache-2.0
+    https://crates.io/crates/skywalking/0.6.0 0.6.0 Apache-2.0
     https://crates.io/crates/sync_wrapper/0.1.1 0.1.1 Apache-2.0
 
 ========================================================================
