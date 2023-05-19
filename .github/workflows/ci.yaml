@@ -50,9 +50,9 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install Cargo nightly
-        run: rustup toolchain install nightly
+        run: rustup toolchain install nightly-2023-05-19
       - name: Cargo minimal versions
-        run: cargo +nightly -Z minimal-versions generate-lockfile
+        run: cargo +nightly-2023-05-19 -Z minimal-versions generate-lockfile
       - name: Check License Header
         uses: apache/skywalking-eyes/header/@d299844e334855087f18ae1fe3c81ae8d22bc282
         with:
@@ -79,9 +79,9 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install Rust toolchain
-        run: rustup toolchain install nightly-2022-07-30 --component rustfmt
+        run: rustup toolchain install nightly-2023-05-19 --component rustfmt
       - name: Run format
-        run: cargo +nightly-2022-07-30 fmt --all -- --check
+        run: cargo +nightly-2023-05-19 fmt --all -- --check
 
   check-and-test:
     strategy:
@@ -98,7 +98,7 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install protoc
-        run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
+        run: sudo apt-get install -y protobuf-compiler
         if: ${{ matrix.features != '--features vendored' }}
       - name: Install Rust toolchain
         run: rustup toolchain install 1.63.0 --component clippy
@@ -116,8 +116,8 @@ jobs:
         with:
           submodules: 'recursive'
       - name: Install protoc
-        run: sudo apt-get install -y protobuf-compiler=3.6.1.3-2ubuntu5
+        run: sudo apt-get install -y protobuf-compiler
       - name: Install Rust toolchain
-        run: rustup toolchain install nightly-2022-07-30
+        run: rustup toolchain install nightly-2023-05-19
       - name: Run docs
-        run: cargo +nightly-2022-07-30 rustdoc --release --all-features -- --cfg docsrs
+        run: cargo +nightly-2023-05-19 rustdoc --release --all-features -- --cfg docsrs

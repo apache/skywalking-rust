@@ -22,42 +22,7 @@ use crate::{
     skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
     trace::trace_context::SpanStack,
 };
-use parking_lot::{
-    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard,
-};
-use std::{
-    fmt::Formatter,
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
-
-/// Wrapper of [SpanObject] immutable reference.
-pub struct SpanObjectRef<'a>(pub(crate) MappedRwLockReadGuard<'a, SpanObject>);
-
-impl Deref for SpanObjectRef<'_> {
-    type Target = SpanObject;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Wrapper of [SpanObject] mutable reference.
-pub struct SpanObjectMut<'a>(MappedRwLockWriteGuard<'a, SpanObject>);
-
-impl Deref for SpanObjectMut<'_> {
-    type Target = SpanObject;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for SpanObjectMut<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+use std::{fmt::Formatter, mem::take, sync::Arc};
 
 /// Span is a concept that represents trace information for a single RPC.
 /// The Rust SDK supports Entry Span to represent inbound to a service
@@ -97,24 +62,18 @@ impl DerefMut for SpanObjectMut<'_> {
 #[must_use = "assign a variable name to guard the span not be dropped immediately."]
 pub struct Span {
     index: usize,
+    obj: Option<SpanObject>,
     stack: Arc<SpanStack>,
 }
 
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let span_object: SpanObject;
         f.debug_struct("Span")
             .field(
                 "data",
-                match self.stack.active.try_read() {
-                    Some(spans) => match spans.get(self.index) {
-                        Some(span) => {
-                            span_object = span.clone();
-                            &span_object
-                        }
-                        None => &"<hanged>",
-                    },
-                    None => &"<locked>",
+                match self.obj {
+                    Some(ref obj) => obj,
+                    None => &"<none>",
                 },
             )
             .finish()
@@ -124,8 +83,12 @@ impl std::fmt::Debug for Span {
 const SKYWALKING_RUST_COMPONENT_ID: i32 = 11000;
 
 impl Span {
-    pub(crate) fn new(index: usize, stack: Arc<SpanStack>) -> Self {
-        Self { index, stack }
+    pub(crate) fn new(index: usize, obj: SpanObject, stack: Arc<SpanStack>) -> Self {
+        Self {
+            index,
+            obj: Some(obj),
+            stack,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -153,17 +116,15 @@ impl Span {
     }
 
     /// Get immutable span object reference.
-    pub fn span_object(&self) -> SpanObjectRef<'_> {
-        SpanObjectRef(RwLockReadGuard::map(self.stack.active(), |stack| {
-            &stack[self.index]
-        }))
+    #[inline]
+    pub fn span_object(&self) -> &SpanObject {
+        self.obj.as_ref().unwrap()
     }
 
     /// Mutable with inner span object.
-    pub fn span_object_mut(&mut self) -> SpanObjectMut<'_> {
-        SpanObjectMut(RwLockWriteGuard::map(self.stack.active_mut(), |stack| {
-            &mut stack[self.index]
-        }))
+    #[inline]
+    pub fn span_object_mut(&mut self) -> &mut SpanObject {
+        self.obj.as_mut().unwrap()
     }
 
     /// Get span id.
@@ -191,7 +152,8 @@ impl Drop for Span {
     /// Set the end time as current time, pop from context active span stack,
     /// and push to context spans.
     fn drop(&mut self) {
-        self.stack.finalize_span(self.index);
+        self.stack
+            .finalize_span(self.index, take(&mut self.obj).unwrap());
     }
 }
 
