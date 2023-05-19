@@ -280,6 +280,7 @@ impl TracingContext {
 
     /// Create a new exit span, which will be created when tracing context will
     /// generate new span for function invocation.
+    ///
     /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
     ///
     /// # Panics
@@ -295,8 +296,10 @@ impl TracingContext {
         )
     }
 
-    /// Create a new exit span, which will be created when tracing context will
-    /// generate new span for function invocation.
+    /// Create a new exit span, follow by last active span instead of as a child
+    /// span, which will be created when tracing context will generate new span
+    /// for function invocation.
+    ///
     /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
     ///
     /// # Panics
@@ -327,7 +330,8 @@ impl TracingContext {
         )
     }
 
-    /// Create a new local span.
+    /// Create a new local span, follow by last active span instead of as a
+    /// child span.
     ///
     /// # Panics
     ///
