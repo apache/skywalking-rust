@@ -198,6 +198,15 @@ impl TracingContext {
         span_id
     }
 
+    /// Clone the last finalized span.
+    #[doc(hidden)]
+    pub fn last_span(&self) -> Option<SpanObject> {
+        RwLockReadGuard::try_map(self.span_stack.finalized(), |spans| spans.last())
+            .ok()
+            .as_deref()
+            .cloned()
+    }
+
     fn spans_mut(&mut self) -> RwLockWriteGuard<'_, Vec<SpanObject>> {
         self.span_stack.finalized.try_write().expect(LOCK_MSG)
     }
