@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-FROM rust:1.63
-RUN apt-get update && apt-get install -y cmake protobuf-compiler=3.12.4-1
+FROM rust:1.65
+RUN apt-get update && apt-get install -y cmake protobuf-compiler
 WORKDIR /build
 COPY . /build/
 RUN cargo build --release --workspace

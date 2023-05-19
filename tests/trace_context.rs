@@ -107,7 +107,7 @@ async fn create_span() {
                         operation_name: "op3".to_string(),
                         peer: "example.com/test".to_string(),
                         span_type: SpanType::Exit as i32,
-                        span_layer: SpanLayer::Http as i32,
+                        span_layer: SpanLayer::Unknown as i32,
                         component_id: 11000,
                         is_error: false,
                         tags: Vec::<KeyStringValuePair>::new(),
@@ -133,7 +133,7 @@ async fn create_span() {
                             operation_name: "op5".to_string(),
                             peer: "example.com/test".to_string(),
                             span_type: SpanType::Exit as i32,
-                            span_layer: SpanLayer::Http as i32,
+                            span_layer: SpanLayer::Unknown as i32,
                             component_id: 11000,
                             is_error: false,
                             tags: Vec::<KeyStringValuePair>::new(),
@@ -142,6 +142,42 @@ async fn create_span() {
                         };
                         assert_eq!(context.last_span(), Some(span5_expected));
                     }
+                }
+
+                {
+                    let span6 = context.create_local_span("op6");
+
+                    {
+                        let span7 = context.create_following_local_span("op7");
+                        let span8 = context.create_following_exit_span("op7", "example.com/test");
+
+                        assert_eq!(
+                            span7.span_object().parent_span_id,
+                            span6.span_object().parent_span_id
+                        );
+                        assert_eq!(
+                            span8.span_object().parent_span_id,
+                            span6.span_object().parent_span_id
+                        );
+                    }
+
+                    let span7_expected = SpanObject {
+                        span_id: 6,
+                        parent_span_id: 0,
+                        start_time: 1,
+                        end_time: 100,
+                        refs: Vec::<SegmentReference>::new(),
+                        operation_name: "op7".to_string(),
+                        peer: "".to_string(),
+                        span_type: SpanType::Local as i32,
+                        span_layer: SpanLayer::Unknown as i32,
+                        component_id: 11000,
+                        is_error: false,
+                        tags: Vec::<KeyStringValuePair>::new(),
+                        logs: Vec::<Log>::new(),
+                        skip_analysis: false,
+                    };
+                    assert_eq!(context.last_span(), Some(span7_expected));
                 }
 
                 drop(span1);

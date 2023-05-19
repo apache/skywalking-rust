@@ -41,15 +41,18 @@ use std::{fmt::Formatter, mem::take, sync::Arc};
 pub(crate) struct ActiveSpan {
     span_id: i32,
 
+    parent_span_id: i32,
+
     /// For [TracingContext::continued] used.
     r#ref: Option<SegmentReference>,
 }
 
 impl ActiveSpan {
-    fn new(span_id: i32) -> Self {
+    fn new(span_id: i32, parent_span_id: i32) -> Self {
         Self {
             span_id,
             r#ref: None,
+            parent_span_id,
         }
     }
 }
@@ -282,23 +285,31 @@ impl TracingContext {
     /// # Panics
     ///
     /// Panic if entry span not existed.
+    #[inline]
     pub fn create_exit_span(&mut self, operation_name: &str, remote_peer: &str) -> Span {
-        if self.next_span_id() == 0 {
-            panic!("entry span must be existed.");
-        }
-
-        let span = Span::new_obj(
-            self.inc_next_span_id(),
-            self.peek_active_span_id().unwrap_or(-1),
-            operation_name.to_string(),
-            remote_peer.to_string(),
+        self.create_common_span(
+            operation_name,
+            remote_peer,
             SpanType::Exit,
-            SpanLayer::Http,
-            false,
-        );
+            self.peek_active_span_id().unwrap_or(-1),
+        )
+    }
 
-        let index = self.push_active_span(&span);
-        Span::new(index, span, self.span_stack.clone())
+    /// Create a new exit span, which will be created when tracing context will
+    /// generate new span for function invocation.
+    /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
+    ///
+    /// # Panics
+    ///
+    /// Panic if entry span not existed.
+    #[inline]
+    pub fn create_following_exit_span(&mut self, operation_name: &str, remote_peer: &str) -> Span {
+        self.create_common_span(
+            operation_name,
+            remote_peer,
+            SpanType::Exit,
+            self.peek_active_parent_span_id().unwrap_or(-1),
+        )
     }
 
     /// Create a new local span.
@@ -306,17 +317,49 @@ impl TracingContext {
     /// # Panics
     ///
     /// Panic if entry span not existed.
+    #[inline]
     pub fn create_local_span(&mut self, operation_name: &str) -> Span {
+        self.create_common_span(
+            operation_name,
+            "",
+            SpanType::Local,
+            self.peek_active_span_id().unwrap_or(-1),
+        )
+    }
+
+    /// Create a new local span.
+    ///
+    /// # Panics
+    ///
+    /// Panic if entry span not existed.
+    #[inline]
+    pub fn create_following_local_span(&mut self, operation_name: &str) -> Span {
+        self.create_common_span(
+            operation_name,
+            "",
+            SpanType::Local,
+            self.peek_active_parent_span_id().unwrap_or(-1),
+        )
+    }
+
+    /// create exit or local span common logic.
+    fn create_common_span(
+        &mut self,
+        operation_name: &str,
+        remote_peer: &str,
+        span_type: SpanType,
+        parent_span_id: i32,
+    ) -> Span {
         if self.next_span_id() == 0 {
             panic!("entry span must be existed.");
         }
 
         let span = Span::new_obj(
             self.inc_next_span_id(),
-            self.peek_active_span_id().unwrap_or(-1),
+            parent_span_id,
             operation_name.to_string(),
-            Default::default(),
-            SpanType::Local,
+            remote_peer.to_string(),
+            span_type,
             SpanLayer::Unknown,
             false,
         );
@@ -385,10 +428,14 @@ impl TracingContext {
         self.active_span().map(|span| span.span_id)
     }
 
+    pub(crate) fn peek_active_parent_span_id(&self) -> Option<i32> {
+        self.active_span().map(|span| span.parent_span_id)
+    }
+
     fn push_active_span(&mut self, span: &SpanObject) -> usize {
         self.primary_endpoint_name = span.operation_name.clone();
         let mut stack = self.active_span_stack_mut();
-        stack.push(ActiveSpan::new(span.span_id));
+        stack.push(ActiveSpan::new(span.span_id, span.parent_span_id));
         stack.len() - 1
     }
 
