@@ -72,7 +72,7 @@ segmentItems:
       peer: ''
       skipAnalysis: false
       spanId: 0
-      spanLayer: Unknown
+      spanLayer: Http
       spanType: Entry
       startTime: gt 0
   serviceName: producer
