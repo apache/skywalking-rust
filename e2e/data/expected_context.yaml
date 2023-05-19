@@ -50,7 +50,7 @@ segmentItems:
       peer: consumer:8082
       skipAnalysis: false
       spanId: 1
-      spanLayer: Http
+      spanLayer: Unknown
       spanType: Exit
       startTime: gt 0
     - componentId: 11000
@@ -72,7 +72,7 @@ segmentItems:
       peer: ''
       skipAnalysis: false
       spanId: 0
-      spanLayer: Http
+      spanLayer: Unknown
       spanType: Entry
       startTime: gt 0
   serviceName: producer
