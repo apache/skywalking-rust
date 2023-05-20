@@ -73,6 +73,7 @@ impl ActiveSpan {
 
 pub(crate) struct FinalizeSpan {
     uid: SpanUid,
+    /// When the span is [AsyncSpan] and unfinished, it is None.
     obj: Option<SpanObject>,
     /// For [TracingContext::continued] used.
     r#ref: Option<SegmentReference>,
