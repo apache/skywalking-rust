@@ -22,6 +22,7 @@ use crate::{
     common::{
         random_generator::RandomGenerator,
         system_time::{fetch_time, TimePeriod},
+        wait_group::WaitGroup,
     },
     error::LOCK_MSG,
     skywalking_proto::v3::{
@@ -36,40 +37,69 @@ use crate::{
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use std::{fmt::Formatter, mem::take, sync::Arc};
+use std::{
+    fmt::Formatter,
+    mem::take,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
+
+/// The span uid is to identify the [Span] for crate.
+pub(crate) type SpanUid = usize;
 
 pub(crate) struct ActiveSpan {
+    uid: SpanUid,
     span_id: i32,
-
-    parent_span_id: i32,
-
     /// For [TracingContext::continued] used.
     r#ref: Option<SegmentReference>,
 }
 
 impl ActiveSpan {
-    fn new(span_id: i32, parent_span_id: i32) -> Self {
+    fn new(uid: SpanUid, span_id: i32) -> Self {
         Self {
+            uid,
             span_id,
             r#ref: None,
-            parent_span_id,
         }
+    }
+
+    #[inline]
+    pub(crate) fn uid(&self) -> SpanUid {
+        self.uid
+    }
+}
+
+pub(crate) struct FinalizeSpan {
+    uid: SpanUid,
+    obj: Option<SpanObject>,
+    /// For [TracingContext::continued] used.
+    r#ref: Option<SegmentReference>,
+}
+
+impl FinalizeSpan {
+    pub(crate) fn new(
+        uid: usize,
+        obj: Option<SpanObject>,
+        r#ref: Option<SegmentReference>,
+    ) -> Self {
+        Self { uid, obj, r#ref }
     }
 }
 
 #[derive(Default)]
 pub(crate) struct SpanStack {
-    pub(crate) finalized: RwLock<Vec<SpanObject>>,
+    pub(crate) finalized: RwLock<Vec<FinalizeSpan>>,
     pub(crate) active: RwLock<Vec<ActiveSpan>>,
 }
 
 impl SpanStack {
-    #[allow(dead_code)]
-    pub(crate) fn finalized(&self) -> RwLockReadGuard<'_, Vec<SpanObject>> {
+    pub(crate) fn finalized(&self) -> RwLockReadGuard<'_, Vec<FinalizeSpan>> {
         self.finalized.try_read().expect(LOCK_MSG)
     }
 
-    pub(crate) fn finalized_mut(&self) -> RwLockWriteGuard<'_, Vec<SpanObject>> {
+    pub(crate) fn finalized_mut(&self) -> RwLockWriteGuard<'_, Vec<FinalizeSpan>> {
         self.finalized.try_write().expect(LOCK_MSG)
     }
 
@@ -81,31 +111,53 @@ impl SpanStack {
         self.active.try_write().expect(LOCK_MSG)
     }
 
-    fn pop_active(&self, index: usize) -> Option<ActiveSpan> {
+    fn pop_active(&self, uid: SpanUid) -> Option<ActiveSpan> {
         let mut stack = self.active_mut();
-        if stack.len() > index + 1 {
-            None
-        } else {
+        if stack
+            .last()
+            .map(|span| span.uid() == uid)
+            .unwrap_or_default()
+        {
             stack.pop()
+        } else {
+            None
         }
     }
 
     /// Close span. We can't use closed span after finalize called.
-    pub(crate) fn finalize_span(&self, index: usize, mut obj: SpanObject) {
-        let span = self.pop_active(index);
-        if let Some(span) = span {
-            if span.span_id == obj.span_id {
-                obj.end_time = fetch_time(TimePeriod::End);
+    pub(crate) fn finalize_span(&self, uid: SpanUid, obj: Option<SpanObject>) {
+        let Some(active_span) = self.pop_active(uid) else {
+            panic!("Finalize span isn't the active span");
+        };
 
-                if let Some(r#ref) = span.r#ref {
+        let finalize_span = match obj {
+            Some(mut obj) => {
+                obj.end_time = fetch_time(TimePeriod::End);
+                if let Some(r#ref) = active_span.r#ref {
                     obj.refs.push(r#ref);
                 }
+                FinalizeSpan::new(uid, Some(obj), None)
+            }
+            None => FinalizeSpan::new(uid, None, active_span.r#ref),
+        };
 
-                self.finalized_mut().push(obj);
+        self.finalized_mut().push(finalize_span);
+    }
+
+    /// Close async span, fill the span object.
+    pub(crate) fn finalize_async_span(&self, uid: SpanUid, mut obj: SpanObject) {
+        for finalize_span in &mut *self.finalized_mut() {
+            if finalize_span.uid == uid {
+                obj.end_time = fetch_time(TimePeriod::End);
+                if let Some(r#ref) = take(&mut finalize_span.r#ref) {
+                    obj.refs.push(r#ref);
+                }
+                finalize_span.obj = Some(obj);
                 return;
             }
         }
-        panic!("Finalize span isn't the active span");
+
+        unreachable!()
     }
 }
 
@@ -121,28 +173,19 @@ pub struct TracingContext {
     next_span_id: i32,
     span_stack: Arc<SpanStack>,
     primary_endpoint_name: String,
+    span_uid_generator: AtomicUsize,
+    wg: WaitGroup,
     tracer: WeakTracer,
 }
 
 impl std::fmt::Debug for TracingContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let span_objects: Vec<SpanObject>;
         f.debug_struct("TracingContext")
             .field("trace_id", &self.trace_id)
             .field("trace_segment_id", &self.trace_segment_id)
             .field("service", &self.service)
             .field("service_instance", &self.service_instance)
             .field("next_span_id", &self.next_span_id)
-            .field(
-                "finalized_spans",
-                match self.span_stack.finalized.try_read() {
-                    Some(spans) => {
-                        span_objects = spans.clone();
-                        &span_objects
-                    }
-                    None => &"<locked>",
-                },
-            )
             .finish()
     }
 }
@@ -162,6 +205,8 @@ impl TracingContext {
             next_span_id: Default::default(),
             span_stack: Default::default(),
             primary_endpoint_name: Default::default(),
+            span_uid_generator: AtomicUsize::new(0),
+            wg: Default::default(),
             tracer,
         }
     }
@@ -201,16 +246,19 @@ impl TracingContext {
         span_id
     }
 
+    /// The span uid is to identify the [Span] for crate.
+    fn generate_span_uid(&self) -> SpanUid {
+        self.span_uid_generator.fetch_add(1, Ordering::SeqCst)
+    }
+
     /// Clone the last finalized span.
     #[doc(hidden)]
     pub fn last_span(&self) -> Option<SpanObject> {
-        RwLockReadGuard::try_map(self.span_stack.finalized(), |spans| spans.last())
-            .ok()
-            .as_deref()
-            .cloned()
+        let spans = &*self.span_stack.finalized();
+        spans.iter().rev().find_map(|span| span.obj.clone())
     }
 
-    fn spans_mut(&mut self) -> RwLockWriteGuard<'_, Vec<SpanObject>> {
+    fn finalize_spans_mut(&mut self) -> RwLockWriteGuard<'_, Vec<FinalizeSpan>> {
         self.span_stack.finalized.try_write().expect(LOCK_MSG)
     }
 
@@ -248,7 +296,7 @@ impl TracingContext {
         );
 
         let index = self.push_active_span(&span);
-        Span::new(index, span, self.span_stack.clone())
+        Span::new(index, span, self.wg.clone(), self.span_stack.clone())
     }
 
     /// Create a new entry span, which is an initiator of collection of spans.
@@ -296,25 +344,6 @@ impl TracingContext {
         )
     }
 
-    /// Create a new exit span, follow by last active span instead of as a child
-    /// span, which will be created when tracing context will generate new span
-    /// for function invocation.
-    ///
-    /// Currently, this SDK supports RPC call. So we must set `remote_peer`.
-    ///
-    /// # Panics
-    ///
-    /// Panic if entry span not existed.
-    #[inline]
-    pub fn create_following_exit_span(&mut self, operation_name: &str, remote_peer: &str) -> Span {
-        self.create_common_span(
-            operation_name,
-            remote_peer,
-            SpanType::Exit,
-            self.peek_active_parent_span_id().unwrap_or(-1),
-        )
-    }
-
     /// Create a new local span.
     ///
     /// # Panics
@@ -327,22 +356,6 @@ impl TracingContext {
             "",
             SpanType::Local,
             self.peek_active_span_id().unwrap_or(-1),
-        )
-    }
-
-    /// Create a new local span, follow by last active span instead of as a
-    /// child span.
-    ///
-    /// # Panics
-    ///
-    /// Panic if entry span not existed.
-    #[inline]
-    pub fn create_following_local_span(&mut self, operation_name: &str) -> Span {
-        self.create_common_span(
-            operation_name,
-            "",
-            SpanType::Local,
-            self.peek_active_parent_span_id().unwrap_or(-1),
         )
     }
 
@@ -368,8 +381,8 @@ impl TracingContext {
             false,
         );
 
-        let index = self.push_active_span(&span);
-        Span::new(index, span, self.span_stack.clone())
+        let uid = self.push_active_span(&span);
+        Span::new(uid, span, self.wg.clone(), self.span_stack.clone())
     }
 
     /// Capture a snapshot for cross-thread propagation.
@@ -406,6 +419,11 @@ impl TracingContext {
         }
     }
 
+    /// Wait all async span dropped which, created by [Span::prepare_for_async].
+    pub fn wait(self) {
+        self.wg.clone().wait();
+    }
+
     /// It converts tracing context into segment object.
     /// This conversion should be done before sending segments into OAP.
     ///
@@ -416,7 +434,12 @@ impl TracingContext {
         let trace_segment_id = self.trace_segment_id().to_owned();
         let service = self.service().to_owned();
         let service_instance = self.service_instance().to_owned();
-        let spans = take(&mut *self.spans_mut());
+        let spans = take(&mut *self.finalize_spans_mut());
+
+        let spans = spans
+            .into_iter()
+            .map(|span| span.obj.expect("Some async span haven't finished"))
+            .collect();
 
         SegmentObject {
             trace_id,
@@ -432,15 +455,14 @@ impl TracingContext {
         self.active_span().map(|span| span.span_id)
     }
 
-    pub(crate) fn peek_active_parent_span_id(&self) -> Option<i32> {
-        self.active_span().map(|span| span.parent_span_id)
-    }
+    fn push_active_span(&mut self, span: &SpanObject) -> SpanUid {
+        let uid = self.generate_span_uid();
 
-    fn push_active_span(&mut self, span: &SpanObject) -> usize {
         self.primary_endpoint_name = span.operation_name.clone();
         let mut stack = self.active_span_stack_mut();
-        stack.push(ActiveSpan::new(span.span_id, span.parent_span_id));
-        stack.len() - 1
+        stack.push(ActiveSpan::new(uid, span.span_id));
+
+        uid
     }
 
     fn upgrade_tracer(&self) -> Tracer {
