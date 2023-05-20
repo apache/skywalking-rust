@@ -23,6 +23,7 @@ use skywalking::{
     },
     trace::{
         propagation::{decoder::decode_propagation, encoder::encode_propagation},
+        span::AbstractSpan,
         tracer::Tracer,
     },
 };

@@ -30,7 +30,7 @@ use crate::{
     },
     trace::{
         propagation::context::PropagationContext,
-        span::Span,
+        span::{AbstractSpan, Span},
         tracer::{Tracer, WeakTracer},
     },
 };

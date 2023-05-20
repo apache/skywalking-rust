@@ -31,6 +31,35 @@ use std::{
     sync::{Arc, Weak},
 };
 
+/// [AbstractSpan] contains methods handle [SpanObject].
+pub trait AbstractSpan {
+    /// Get immutable span object reference.
+    fn span_object(&self) -> &SpanObject;
+
+    /// Mutable with inner span object.
+    fn span_object_mut(&mut self) -> &mut SpanObject;
+
+    /// Get span id.
+    fn span_id(&self) -> i32 {
+        self.span_object().span_id
+    }
+
+    /// Add logs to the span.
+    fn add_log<K, V, I>(&mut self, message: I)
+    where
+        K: Into<String>,
+        V: Into<String>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        self.span_object_mut().add_log(message)
+    }
+
+    /// Add tag to the span.
+    fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.span_object_mut().add_tag(key, value)
+    }
+}
+
 /// Span is a concept that represents trace information for a single RPC.
 /// The Rust SDK supports Entry Span to represent inbound to a service
 /// and Exit Span to represent outbound from a service.
@@ -124,38 +153,6 @@ impl Span {
         }
     }
 
-    /// Get immutable span object reference.
-    #[inline]
-    pub fn span_object(&self) -> &SpanObject {
-        self.obj.as_ref().unwrap()
-    }
-
-    /// Mutable with inner span object.
-    #[inline]
-    pub fn span_object_mut(&mut self) -> &mut SpanObject {
-        self.obj.as_mut().unwrap()
-    }
-
-    /// Get span id.
-    pub fn span_id(&self) -> i32 {
-        self.span_object().span_id
-    }
-
-    /// Add logs to the span.
-    pub fn add_log<K, V, I>(&mut self, message: I)
-    where
-        K: Into<String>,
-        V: Into<String>,
-        I: IntoIterator<Item = (K, V)>,
-    {
-        self.span_object_mut().add_log(message)
-    }
-
-    /// Add tag to the span.
-    pub fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.span_object_mut().add_tag(key, value)
-    }
-
     fn is_active_span(&self) -> bool {
         let active_spans = &*self.stack.active();
         active_spans
@@ -199,6 +196,18 @@ impl Drop for Span {
     /// and push to context spans.
     fn drop(&mut self) {
         self.stack.finalize_span(self.uid, take(&mut self.obj));
+    }
+}
+
+impl AbstractSpan for Span {
+    #[inline]
+    fn span_object(&self) -> &SpanObject {
+        self.obj.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn span_object_mut(&mut self) -> &mut SpanObject {
+        self.obj.as_mut().unwrap()
     }
 }
 
@@ -274,11 +283,25 @@ impl Drop for AsyncSpan {
     }
 }
 
+impl AbstractSpan for AsyncSpan {
+    #[inline]
+    fn span_object(&self) -> &SpanObject {
+        self.obj.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn span_object_mut(&mut self) -> &mut SpanObject {
+        self.obj.as_mut().unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    trait AssertSend: Send {}
+    trait AssertSend: Send + 'static {}
 
     impl AssertSend for Span {}
+
+    impl AssertSend for AsyncSpan {}
 }

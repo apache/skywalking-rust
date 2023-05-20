@@ -24,7 +24,7 @@ use skywalking::{
         log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
         TextLog, TraceContext,
     },
-    trace::tracer::Tracer,
+    trace::{span::AbstractSpan, tracer::Tracer},
 };
 use std::{
     collections::LinkedList,
