@@ -19,10 +19,10 @@ use skywalking::{
         meter::{Counter, Gauge, Histogram},
         metricer::Metricer,
     },
-    reporter::{CollectItem, Report},
-    skywalking_proto::v3::{
+    proto::v3::{
         meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
     },
+    reporter::{CollectItem, Report},
 };
 use std::{
     collections::LinkedList,

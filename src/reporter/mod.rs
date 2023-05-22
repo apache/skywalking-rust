@@ -20,8 +20,8 @@ pub mod grpc;
 pub mod print;
 
 #[cfg(feature = "management")]
-use crate::skywalking_proto::v3::{InstancePingPkg, InstanceProperties};
-use crate::skywalking_proto::v3::{LogData, MeterData, SegmentObject};
+use crate::proto::v3::{InstancePingPkg, InstanceProperties};
+use crate::proto::v3::{LogData, MeterData, SegmentObject};
 use serde::{Deserialize, Serialize};
 use std::{ops::Deref, sync::Arc};
 use tokio::sync::OnceCell;

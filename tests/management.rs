@@ -16,8 +16,8 @@
 
 use skywalking::{
     management::{instance::Properties, manager::Manager},
+    proto::v3::{InstancePingPkg, InstanceProperties, KeyStringValuePair},
     reporter::{CollectItem, Report},
-    skywalking_proto::v3::{InstancePingPkg, InstanceProperties, KeyStringValuePair},
 };
 use std::{
     collections::LinkedList,

@@ -19,7 +19,7 @@
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
     metrics::metricer::Metricer,
-    skywalking_proto::v3::{
+    proto::v3::{
         meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
     },
 };

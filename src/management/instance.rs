@@ -16,7 +16,7 @@
 
 //! Skywalking report instance properties items.
 
-use crate::skywalking_proto::v3::{InstanceProperties, KeyStringValuePair};
+use crate::proto::v3::{InstanceProperties, KeyStringValuePair};
 use once_cell::sync::Lazy;
 use std::{collections::HashMap, process};
 use systemstat::{IpAddr, Platform, System};
