@@ -19,7 +19,7 @@
 
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
-    skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
+    proto::v3::{SpanLayer, SpanObject, SpanType},
     trace::trace_context::SpanStack,
 };
 use std::{fmt::Formatter, mem::take, sync::Arc};

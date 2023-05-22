@@ -24,9 +24,7 @@ use crate::{
         system_time::{fetch_time, TimePeriod},
     },
     error::LOCK_MSG,
-    skywalking_proto::v3::{
-        RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType,
-    },
+    proto::v3::{RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType},
     trace::{
         propagation::context::PropagationContext,
         span::Span,

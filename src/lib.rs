@@ -25,8 +25,8 @@ pub mod logging;
 #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
 pub mod management;
 pub mod metrics;
+pub mod proto;
 pub mod reporter;
-pub mod skywalking_proto;
 pub mod trace;
 
 pub use error::{Error, Result};
