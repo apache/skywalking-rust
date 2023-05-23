@@ -23,6 +23,7 @@ use skywalking::{
     reporter::{print::PrintReporter, CollectItem, Report},
     trace::{
         propagation::{decoder::decode_propagation, encoder::encode_propagation},
+        span::AbstractSpan,
         tracer::Tracer,
     },
 };
@@ -107,7 +108,7 @@ async fn create_span() {
                         operation_name: "op3".to_string(),
                         peer: "example.com/test".to_string(),
                         span_type: SpanType::Exit as i32,
-                        span_layer: SpanLayer::Http as i32,
+                        span_layer: SpanLayer::Unknown as i32,
                         component_id: 11000,
                         is_error: false,
                         tags: Vec::<KeyStringValuePair>::new(),
@@ -133,7 +134,7 @@ async fn create_span() {
                             operation_name: "op5".to_string(),
                             peer: "example.com/test".to_string(),
                             span_type: SpanType::Exit as i32,
-                            span_layer: SpanLayer::Http as i32,
+                            span_layer: SpanLayer::Unknown as i32,
                             component_id: 11000,
                             is_error: false,
                             tags: Vec::<KeyStringValuePair>::new(),
@@ -142,6 +143,54 @@ async fn create_span() {
                         };
                         assert_eq!(context.last_span(), Some(span5_expected));
                     }
+                }
+
+                {
+                    let span6 = context.create_local_span("op6");
+
+                    {
+                        let span7 = context.create_local_span("op7");
+                        let span7 = span7.prepare_for_async();
+                        assert_eq!(context.last_span().unwrap().operation_name, "op4");
+                        assert_eq!(
+                            span7.span_object().parent_span_id,
+                            span6.span_object().span_id,
+                        );
+
+                        let span8 = context.create_exit_span("op7", "example.com/test");
+                        let mut span8 = span8.prepare_for_async();
+                        assert_eq!(context.last_span().unwrap().operation_name, "op4");
+                        assert_eq!(
+                            span8.span_object().parent_span_id,
+                            span6.span_object().span_id,
+                        );
+
+                        {
+                            let _ = span7;
+                            span8.add_tag("foo", "bar");
+                        }
+                    }
+
+                    let span8_expected = SpanObject {
+                        span_id: 7,
+                        parent_span_id: 5,
+                        start_time: 1,
+                        end_time: 100,
+                        refs: Vec::<SegmentReference>::new(),
+                        operation_name: "op7".to_string(),
+                        peer: "example.com/test".to_string(),
+                        span_type: SpanType::Exit as i32,
+                        span_layer: SpanLayer::Unknown as i32,
+                        component_id: 11000,
+                        is_error: false,
+                        tags: vec![KeyStringValuePair {
+                            key: "foo".to_string(),
+                            value: "bar".to_string(),
+                        }],
+                        logs: Vec::<Log>::new(),
+                        skip_analysis: false,
+                    };
+                    assert_eq!(context.last_span(), Some(span8_expected));
                 }
 
                 drop(span1);
@@ -164,6 +213,8 @@ async fn create_span() {
                 };
                 assert_eq!(context.last_span(), Some(span1_expected));
             }
+
+            context.wait();
 
             tracer
         },

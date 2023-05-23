@@ -24,7 +24,7 @@ use skywalking::{
         TextLog, TraceContext,
     },
     reporter::{CollectItem, Report},
-    trace::tracer::Tracer,
+    trace::{span::AbstractSpan, tracer::Tracer},
 };
 use std::{
     collections::LinkedList,

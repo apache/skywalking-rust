@@ -22,7 +22,10 @@ use crate::{
         log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
         TextLog, TraceContext, YamlLog,
     },
-    trace::{span::Span, trace_context::TracingContext},
+    trace::{
+        span::{AbstractSpan, Span},
+        trace_context::TracingContext,
+    },
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
