@@ -23,6 +23,7 @@ use skywalking::{
         log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
         TextLog, TraceContext,
     },
+    reporter::{CollectItem, Report},
     trace::{span::AbstractSpan, tracer::Tracer},
 };
 use std::{
