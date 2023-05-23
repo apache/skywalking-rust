@@ -170,6 +170,48 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
+# Advanced APIs
+
+## Async Span APIs
+
+`Span::prepare_for_async` designed for async use cases.
+When tags, logs, and attributes (including end time) of the span need to be set in another
+thread or coroutine.
+
+`TracingContext::wait` wait for all `AsyncSpan` finished.
+
+```rust
+use skywalking::{
+    trace::tracer::Tracer,
+    trace::span::AbstractSpan,
+};
+
+async fn handle(tracer: Tracer) {
+    let mut ctx = tracer.create_trace_context();
+
+    {
+        let span = ctx.create_entry_span("op1");
+
+        // Create AsyncSpan and drop span.
+        // Internally, span will occupy the position of finalized span stack.
+        let mut async_span = span.prepare_for_async();
+
+        // Start async route, catch async_span with `move` keyword.
+        tokio::spawn(async move {
+
+            async_span.add_tag("foo", "bar");
+
+            // Something...
+
+            // async_span will drop here, submit modifications to finalized spans stack.
+        });
+    }
+
+    // Wait for all `AsyncSpan` finished.
+    ctx.wait();
+}
+```
+
 # How to compile?
 
 If you have `skywalking-(VERSION).crate`, you can unpack it with the way as follows:

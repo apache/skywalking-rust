@@ -223,40 +223,6 @@ pub struct AsyncSpan {
     stack: Weak<SpanStack>,
 }
 
-impl AsyncSpan {
-    /// Get immutable span object reference.
-    #[inline]
-    pub fn span_object(&self) -> &SpanObject {
-        self.obj.as_ref().unwrap()
-    }
-
-    /// Mutable with inner span object.
-    #[inline]
-    pub fn span_object_mut(&mut self) -> &mut SpanObject {
-        self.obj.as_mut().unwrap()
-    }
-
-    /// Get span id.
-    pub fn span_id(&self) -> i32 {
-        self.span_object().span_id
-    }
-
-    /// Add logs to the span.
-    pub fn add_log<K, V, I>(&mut self, message: I)
-    where
-        K: Into<String>,
-        V: Into<String>,
-        I: IntoIterator<Item = (K, V)>,
-    {
-        self.span_object_mut().add_log(message)
-    }
-
-    /// Add tag to the span.
-    pub fn add_tag(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.span_object_mut().add_tag(key, value)
-    }
-}
-
 impl fmt::Debug for AsyncSpan {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncSpan")
