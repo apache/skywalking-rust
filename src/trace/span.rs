@@ -22,7 +22,7 @@ use crate::{
         system_time::{fetch_time, TimePeriod},
         wait_group::WaitGroup,
     },
-    skywalking_proto::v3::{SpanLayer, SpanObject, SpanType},
+    proto::v3::{SpanLayer, SpanObject, SpanType},
     trace::trace_context::{SpanStack, SpanUid},
 };
 use std::{

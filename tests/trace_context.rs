@@ -16,11 +16,11 @@
 
 use prost::Message;
 use skywalking::{
-    reporter::{print::PrintReporter, CollectItem, Report},
-    skywalking_proto::v3::{
+    proto::v3::{
         KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
         SpanType,
     },
+    reporter::{print::PrintReporter, CollectItem, Report},
     trace::{
         propagation::{decoder::decode_propagation, encoder::encode_propagation},
         span::AbstractSpan,

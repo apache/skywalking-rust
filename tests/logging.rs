@@ -19,8 +19,7 @@ use skywalking::{
         logger::Logger,
         record::{LogRecord, RecordType},
     },
-    reporter::{CollectItem, Report},
-    skywalking_proto::v3::{
+    proto::v3::{
         log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
         TextLog, TraceContext,
     },

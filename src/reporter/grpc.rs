@@ -17,15 +17,15 @@
 //! Grpc implementation of [Report].
 
 #[cfg(feature = "management")]
-use crate::skywalking_proto::v3::management_service_client::ManagementServiceClient;
+use crate::proto::v3::management_service_client::ManagementServiceClient;
 use crate::{
-    reporter::{CollectItem, Report},
-    skywalking_proto::v3::{
+    proto::v3::{
         log_report_service_client::LogReportServiceClient,
         meter_report_service_client::MeterReportServiceClient,
         trace_segment_report_service_client::TraceSegmentReportServiceClient, LogData, MeterData,
         SegmentObject,
     },
+    reporter::{CollectItem, Report},
 };
 use futures_core::Stream;
 use futures_util::future::{try_join_all, TryJoinAll};

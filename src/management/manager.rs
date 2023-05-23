@@ -93,7 +93,7 @@ impl Manager {
 
     fn reporter_keep_alive(reporter: &Arc<DynReport>, service_name: String, instance_name: String) {
         reporter.report(CollectItem::Ping(Box::new(
-            crate::skywalking_proto::v3::InstancePingPkg {
+            crate::proto::v3::InstancePingPkg {
                 service: service_name,
                 service_instance: instance_name,
                 layer: Default::default(),

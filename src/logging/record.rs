@@ -18,7 +18,7 @@
 
 use crate::{
     common::system_time::{fetch_time, TimePeriod},
-    skywalking_proto::v3::{
+    proto::v3::{
         log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
         TextLog, TraceContext, YamlLog,
     },
