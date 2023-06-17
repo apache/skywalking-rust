@@ -18,7 +18,7 @@
 
 use super::{CollectItemConsume, CollectItemProduce};
 use crate::reporter::{CollectItem, Report};
-pub use rdkafka::config::{ClientConfig as RDkafkaClientConfig, RDKafkaLogLevel};
+pub use rdkafka::config::{ClientConfig as RDKafkaClientConfig, RDKafkaLogLevel};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::{
     error,
@@ -71,14 +71,14 @@ pub struct KafkaReportBuilder<P, C> {
     state: Arc<State>,
     producer: Arc<P>,
     consumer: C,
-    client_config: RDkafkaClientConfig,
+    client_config: RDKafkaClientConfig,
     namespace: Option<String>,
     err_handle: Arc<DynErrHandler>,
 }
 
 impl KafkaReportBuilder<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
     /// Create builder, with rdkafka future.
-    pub fn new(client_config: RDkafkaClientConfig) -> Self {
+    pub fn new(client_config: RDKafkaClientConfig) -> Self {
         let (producer, consumer) = mpsc::unbounded_channel();
         Self::new_with_pc(client_config, producer, consumer)
     }
@@ -87,7 +87,7 @@ impl KafkaReportBuilder<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedRecei
 impl<P: CollectItemProduce, C: CollectItemConsume> KafkaReportBuilder<P, C> {
     /// Special purpose, used for user-defined produce and consume operations,
     /// usually you can use [KafkaReportBuilder::new].
-    pub fn new_with_pc(client_config: RDkafkaClientConfig, producer: P, consumer: C) -> Self {
+    pub fn new_with_pc(client_config: RDKafkaClientConfig, producer: P, consumer: C) -> Self {
         Self {
             state: Default::default(),
             producer: Arc::new(producer),
@@ -265,13 +265,15 @@ impl Future for ReportingJoinHandle {
 
 struct TopicNames {
     segment: String,
-    management: String,
     meter: String,
     log: String,
+    #[cfg(feature = "management")]
+    management: String,
 }
 
 impl TopicNames {
     const TOPIC_LOG: &str = "skywalking-logs";
+    #[cfg(feature = "management")]
     const TOPIC_MANAGEMENT: &str = "skywalking-managements";
     const TOPIC_METER: &str = "skywalking-meters";
     const TOPIC_SEGMENT: &str = "skywalking-segments";
@@ -279,9 +281,10 @@ impl TopicNames {
     fn new(namespace: Option<&str>) -> Self {
         Self {
             segment: Self::real_topic_name(namespace, Self::TOPIC_SEGMENT),
-            management: Self::real_topic_name(namespace, Self::TOPIC_MANAGEMENT),
             meter: Self::real_topic_name(namespace, Self::TOPIC_METER),
             log: Self::real_topic_name(namespace, Self::TOPIC_LOG),
+            #[cfg(feature = "management")]
+            management: Self::real_topic_name(namespace, Self::TOPIC_MANAGEMENT),
         }
     }
 
@@ -323,10 +326,12 @@ impl KafkaProducer {
                 &self.topic_names.meter,
                 item.service_instance.as_bytes().to_vec(),
             ),
+            #[cfg(feature = "management")]
             CollectItem::Instance(item) => (
                 &self.topic_names.management,
                 format!("register-{}", &item.service_instance).into_bytes(),
             ),
+            #[cfg(feature = "management")]
             CollectItem::Ping(item) => (
                 &self.topic_names.log,
                 item.service_instance.as_bytes().to_vec(),

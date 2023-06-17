@@ -24,7 +24,11 @@ publish = false
 license = "Apache-2.0"
 
 [dependencies]
-skywalking = { path = ".." }
+skywalking = { path = "..", features = ["kafka-reporter"] }
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 structopt = "0.3"
+
+[dev-dependencies]
+rdkafka = "0.32.2"
+prost = "0.11.0"

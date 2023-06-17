@@ -25,14 +25,13 @@ pub mod print;
 #[cfg(feature = "management")]
 use crate::proto::v3::{InstancePingPkg, InstanceProperties};
 use crate::proto::v3::{LogData, MeterData, SegmentObject};
-use prost::Message;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, ops::Deref, sync::Arc};
 use tokio::sync::{mpsc, OnceCell};
 use tonic::async_trait;
 
 /// Collect item of protobuf object.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum CollectItem {
     /// Tracing object.
@@ -52,7 +51,10 @@ pub enum CollectItem {
 }
 
 impl CollectItem {
+    #[cfg(feature = "kafka-reporter")]
     pub(crate) fn encode_to_vec(self) -> Vec<u8> {
+        use prost::Message;
+
         match self {
             CollectItem::Trace(item) => item.encode_to_vec(),
             CollectItem::Log(item) => item.encode_to_vec(),
@@ -121,35 +123,38 @@ impl CollectItemProduce for mpsc::UnboundedSender<CollectItem> {
     }
 }
 
+/// Alias of method result of [CollectItemConsume].
+pub type ConsumeResult = Result<Option<CollectItem>, Box<dyn Error + Send>>;
+
 /// Special purpose, used for user-defined consume operations. Generally, it
 /// does not need to be handled.
 #[async_trait]
 pub trait CollectItemConsume: Send + Sync + 'static {
     /// Consume the collect item blocking.
-    async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>>;
+    async fn consume(&mut self) -> ConsumeResult;
 
     /// Try to consume the collect item non-blocking.
-    async fn try_consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>>;
+    async fn try_consume(&mut self) -> ConsumeResult;
 }
 
 #[async_trait]
 impl CollectItemConsume for () {
-    async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn consume(&mut self) -> ConsumeResult {
         Ok(None)
     }
 
-    async fn try_consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn try_consume(&mut self) -> ConsumeResult {
         Ok(None)
     }
 }
 
 #[async_trait]
 impl CollectItemConsume for mpsc::Receiver<CollectItem> {
-    async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn consume(&mut self) -> ConsumeResult {
         Ok(self.recv().await)
     }
 
-    async fn try_consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn try_consume(&mut self) -> ConsumeResult {
         use mpsc::error::TryRecvError;
 
         match self.try_recv() {
@@ -164,11 +169,11 @@ impl CollectItemConsume for mpsc::Receiver<CollectItem> {
 
 #[async_trait]
 impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
-    async fn consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn consume(&mut self) -> ConsumeResult {
         Ok(self.recv().await)
     }
 
-    async fn try_consume(&mut self) -> Result<Option<CollectItem>, Box<dyn Error + Send>> {
+    async fn try_consume(&mut self) -> ConsumeResult {
         use mpsc::error::TryRecvError;
 
         match self.try_recv() {
