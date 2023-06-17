@@ -16,16 +16,12 @@
 
 use prost::Message;
 use rdkafka::{
-    consumer::{BaseConsumer, Consumer, ConsumerContext, Rebalance, StreamConsumer},
-    error::KafkaResult,
-    ClientConfig, ClientContext, Message as _, Offset, TopicPartitionList,
+    consumer::{Consumer, StreamConsumer},
+    ClientConfig, Message as _,
 };
-use skywalking::{
-    metrics::meter::Histogram,
-    proto::v3::{
-        log_data_body::Content, meter_data::Metric, JsonLog, KeyStringValuePair, LogData,
-        LogDataBody, LogTags, MeterData, RefType, SegmentObject, SpanLayer, SpanType,
-    },
+use skywalking::proto::v3::{
+    log_data_body::Content, meter_data::Metric, JsonLog, KeyStringValuePair, LogData, LogTags,
+    MeterData, RefType, SegmentObject, SpanLayer, SpanType,
 };
 use std::time::Duration;
 use tokio::time::timeout;
