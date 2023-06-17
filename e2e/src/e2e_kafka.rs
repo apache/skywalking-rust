@@ -26,7 +26,6 @@ use skywalking::proto::v3::{
 use std::time::Duration;
 use tokio::time::timeout;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn segment() {
     let consumer = create_consumer("skywalking-segments");
 
@@ -141,7 +140,6 @@ fn check_segment(segment: &SegmentObject) {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn meter() {
     let consumer = create_consumer("skywalking-meters");
 
@@ -192,7 +190,6 @@ fn check_meter(meter: &MeterData) {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn log() {
     let consumer = create_consumer("skywalking-logs");
 
@@ -284,4 +281,11 @@ async fn consumer_recv<T: Message + Default>(consumer: &StreamConsumer) -> T {
         .unwrap();
     let value = message.payload_view::<[u8]>().unwrap().unwrap();
     Message::decode(value).unwrap()
+}
+
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
+    segment().await;
+    meter().await;
+    log().await;
 }

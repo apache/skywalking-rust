@@ -23,12 +23,14 @@ edition = "2021"
 publish = false
 license = "Apache-2.0"
 
-[dependencies]
-skywalking = { path = "..", features = ["kafka-reporter"] }
-hyper = { version = "0.14", features = ["full"] }
-tokio = { version = "1", features = ["full"] }
-structopt = "0.3"
+[[bin]]
+name = "e2e-kafka"
+path = "src/e2e_kafka.rs"
 
-[dev-dependencies]
-rdkafka = "0.32.2"
+[dependencies]
+hyper = { version = "0.14", features = ["full"] }
 prost = "0.11.0"
+rdkafka = "0.32.2"
+skywalking = { path = "..", features = ["kafka-reporter"] }
+structopt = "0.3"
+tokio = { version = "1", features = ["full"] }
