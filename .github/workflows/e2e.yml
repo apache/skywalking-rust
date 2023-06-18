@@ -41,4 +41,4 @@ jobs:
           pip3 install -r requirements.txt
           python3 e2e/run_e2e.py --expected_file=e2e/data/expected_context.yaml --max_retry_times=3 --target_path=/ping
           echo "run e2e-kafka"
-          docker-compose -f docker-compose.e2e.yml exec producer /build/target/release/e2e-kafka
+          docker-compose -f docker-compose.e2e.yml exec -T producer /build/target/release/e2e-kafka
