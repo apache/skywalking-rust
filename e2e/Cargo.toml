@@ -22,6 +22,7 @@ authors = ["Apache Software Foundation"]
 edition = "2021"
 publish = false
 license = "Apache-2.0"
+default-run = "e2e"
 
 [[bin]]
 name = "e2e-kafka"

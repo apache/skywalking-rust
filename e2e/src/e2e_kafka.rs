@@ -263,7 +263,7 @@ fn check_log(log: &LogData) {
 
 fn create_consumer(topic: &str) -> StreamConsumer {
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", "localhost:9092")
+        .set("bootstrap.servers", "broker:9092")
         .set("broker.address.family", "v4")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "true")

@@ -20,4 +20,5 @@ RUN apt-get update && apt-get install -y cmake protobuf-compiler
 WORKDIR /build
 COPY . /build/
 RUN cargo build --release --workspace
+ENV RUST_BACKTRACE=1
 ENTRYPOINT ["/build/target/release/e2e"]
