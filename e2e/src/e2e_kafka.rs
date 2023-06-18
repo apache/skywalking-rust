@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+#![allow(clippy::bool_assert_comparison)]
+
 use prost::Message;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
