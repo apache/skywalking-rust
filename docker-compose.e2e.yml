@@ -54,6 +54,8 @@ services:
         condition: service_healthy
       consumer:
         condition: service_healthy
+      broker:
+        condition: service_healthy
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.2
