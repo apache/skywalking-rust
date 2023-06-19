@@ -17,17 +17,21 @@
 //! Reporter contains common `Report` trait and the implementations.
 
 pub mod grpc;
+#[cfg(feature = "kafka-reporter")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kafka-reporter")))]
+pub mod kafka;
 pub mod print;
 
 #[cfg(feature = "management")]
 use crate::proto::v3::{InstancePingPkg, InstanceProperties};
 use crate::proto::v3::{LogData, MeterData, SegmentObject};
 use serde::{Deserialize, Serialize};
-use std::{ops::Deref, sync::Arc};
-use tokio::sync::OnceCell;
+use std::{error::Error, ops::Deref, sync::Arc};
+use tokio::sync::{mpsc, OnceCell};
+use tonic::async_trait;
 
 /// Collect item of protobuf object.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum CollectItem {
     /// Tracing object.
@@ -44,6 +48,23 @@ pub enum CollectItem {
     #[cfg(feature = "management")]
     #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     Ping(Box<InstancePingPkg>),
+}
+
+impl CollectItem {
+    #[cfg(feature = "kafka-reporter")]
+    pub(crate) fn encode_to_vec(self) -> Vec<u8> {
+        use prost::Message;
+
+        match self {
+            CollectItem::Trace(item) => item.encode_to_vec(),
+            CollectItem::Log(item) => item.encode_to_vec(),
+            CollectItem::Meter(item) => item.encode_to_vec(),
+            #[cfg(feature = "management")]
+            CollectItem::Instance(item) => item.encode_to_vec(),
+            #[cfg(feature = "management")]
+            CollectItem::Ping(item) => item.encode_to_vec(),
+        }
+    }
 }
 
 pub(crate) type DynReport = dyn Report + Send + Sync + 'static;
@@ -74,5 +95,93 @@ impl<T: Report> Report for Arc<T> {
 impl<T: Report> Report for OnceCell<T> {
     fn report(&self, item: CollectItem) {
         Report::report(self.get().expect("OnceCell is empty"), item)
+    }
+}
+
+/// Special purpose, used for user-defined production operations. Generally, it
+/// does not need to be handled.
+pub trait CollectItemProduce: Send + Sync + 'static {
+    /// Produce the collect item non-blocking.
+    fn produce(&self, item: CollectItem) -> Result<(), Box<dyn Error>>;
+}
+
+impl CollectItemProduce for () {
+    fn produce(&self, _item: CollectItem) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+}
+
+impl CollectItemProduce for mpsc::Sender<CollectItem> {
+    fn produce(&self, item: CollectItem) -> Result<(), Box<dyn Error>> {
+        Ok(self.blocking_send(item)?)
+    }
+}
+
+impl CollectItemProduce for mpsc::UnboundedSender<CollectItem> {
+    fn produce(&self, item: CollectItem) -> Result<(), Box<dyn Error>> {
+        Ok(self.send(item)?)
+    }
+}
+
+/// Alias of method result of [CollectItemConsume].
+pub type ConsumeResult = Result<Option<CollectItem>, Box<dyn Error + Send>>;
+
+/// Special purpose, used for user-defined consume operations. Generally, it
+/// does not need to be handled.
+#[async_trait]
+pub trait CollectItemConsume: Send + Sync + 'static {
+    /// Consume the collect item blocking.
+    async fn consume(&mut self) -> ConsumeResult;
+
+    /// Try to consume the collect item non-blocking.
+    async fn try_consume(&mut self) -> ConsumeResult;
+}
+
+#[async_trait]
+impl CollectItemConsume for () {
+    async fn consume(&mut self) -> ConsumeResult {
+        Ok(None)
+    }
+
+    async fn try_consume(&mut self) -> ConsumeResult {
+        Ok(None)
+    }
+}
+
+#[async_trait]
+impl CollectItemConsume for mpsc::Receiver<CollectItem> {
+    async fn consume(&mut self) -> ConsumeResult {
+        Ok(self.recv().await)
+    }
+
+    async fn try_consume(&mut self) -> ConsumeResult {
+        use mpsc::error::TryRecvError;
+
+        match self.try_recv() {
+            Ok(item) => Ok(Some(item)),
+            Err(e) => match e {
+                TryRecvError::Empty => Ok(None),
+                TryRecvError::Disconnected => Err(Box::new(e)),
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl CollectItemConsume for mpsc::UnboundedReceiver<CollectItem> {
+    async fn consume(&mut self) -> ConsumeResult {
+        Ok(self.recv().await)
+    }
+
+    async fn try_consume(&mut self) -> ConsumeResult {
+        use mpsc::error::TryRecvError;
+
+        match self.try_recv() {
+            Ok(item) => Ok(Some(item)),
+            Err(e) => match e {
+                TryRecvError::Empty => Ok(None),
+                TryRecvError::Disconnected => Err(Box::new(e)),
+            },
+        }
     }
 }

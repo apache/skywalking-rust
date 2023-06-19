@@ -212,6 +212,42 @@ async fn handle(tracer: Tracer) {
 }
 ```
 
+# Advanced Reporter
+
+The advanced report provides an alternative way to submit the agent collected data to the backend.
+
+## kafka reporter
+
+The Kafka reporter plugin support report traces, metrics, logs, instance properties to Kafka cluster.
+
+Make sure the feature `kafka-reporter` is enabled.
+
+```rust
+#[cfg(feature = "kafka-reporter")]
+mod example {
+    use skywalking::reporter::Report;
+    use skywalking::reporter::kafka::{KafkaReportBuilder, KafkaReporter, RDKafkaClientConfig};
+
+    async fn do_something(reporter: &impl Report) {
+        // ....
+    }
+
+    async fn foo() {
+        let mut client_config = RDKafkaClientConfig::new();
+        client_config
+            .set("bootstrap.servers", "broker:9092")
+            .set("message.timeout.ms", "6000");
+
+        let (reporter, reporting) = KafkaReportBuilder::new(client_config).build().await.unwrap();
+        let handle = reporting.spawn();
+
+        do_something(&reporter);
+
+        handle.await.unwrap();
+    }
+}
+```
+
 # How to compile?
 
 If you have `skywalking-(VERSION).crate`, you can unpack it with the way as follows:

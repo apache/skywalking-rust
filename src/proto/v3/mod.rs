@@ -18,6 +18,7 @@
 
 #![allow(missing_docs)]
 #![allow(rustdoc::invalid_html_tags)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 use crate::common::system_time::{fetch_time, TimePeriod};
 

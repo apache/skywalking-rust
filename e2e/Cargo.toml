@@ -22,9 +22,16 @@ authors = ["Apache Software Foundation"]
 edition = "2021"
 publish = false
 license = "Apache-2.0"
+default-run = "e2e"
+
+[[bin]]
+name = "e2e-kafka"
+path = "src/e2e_kafka.rs"
 
 [dependencies]
-skywalking = { path = ".." }
 hyper = { version = "0.14", features = ["full"] }
-tokio = { version = "1", features = ["full"] }
+prost = "0.11.0"
+rdkafka = "0.32.2"
+skywalking = { path = "..", features = ["kafka-reporter"] }
 structopt = "0.3"
+tokio = { version = "1", features = ["full"] }

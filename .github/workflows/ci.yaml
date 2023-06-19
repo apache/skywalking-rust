@@ -91,6 +91,7 @@ jobs:
           - ""
           - "--features management"
           - "--features vendored"
+          - "--features kafka-reporter"
           - "--all-features"
     runs-on: ubuntu-20.04
     steps:

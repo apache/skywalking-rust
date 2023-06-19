@@ -44,6 +44,11 @@ pub enum Error {
     #[error("tokio join failed: {0}")]
     TokioJoin(#[from] tokio::task::JoinError),
 
+    /// Kafka reporter error.
+    #[cfg(feature = "kafka-reporter")]
+    #[error("kafka reporter failed: {0}")]
+    KafkaReporter(crate::reporter::kafka::Error),
+
     /// Other uncovered errors.
     #[error(transparent)]
     Other(#[from] Box<dyn std::error::Error + Send + 'static>),

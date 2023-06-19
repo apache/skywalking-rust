@@ -29,7 +29,11 @@ use skywalking::{
         meter::{Counter, Gauge, Histogram},
         metricer::Metricer,
     },
-    reporter::grpc::GrpcReporter,
+    reporter::{
+        grpc::GrpcReporter,
+        kafka::{KafkaReportBuilder, KafkaReporter, RDKafkaClientConfig},
+        CollectItem, Report,
+    },
     trace::{
         propagation::{
             context::SKYWALKING_HTTP_CONTEXT_HEADER_KEY, decoder::decode_propagation,
@@ -40,6 +44,7 @@ use skywalking::{
 };
 use std::{convert::Infallible, error::Error, net::SocketAddr};
 use structopt::StructOpt;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
@@ -210,11 +215,52 @@ struct Opt {
     mode: String,
 }
 
+#[derive(Clone)]
+struct CombineReporter {
+    grpc_reporter: GrpcReporter<UnboundedSender<CollectItem>, UnboundedReceiver<CollectItem>>,
+    kafka_reporter: KafkaReporter<UnboundedSender<CollectItem>>,
+}
+
+impl Report for CombineReporter {
+    fn report(&self, item: CollectItem) {
+        let typ = match &item {
+            CollectItem::Trace(_) => "trace",
+            CollectItem::Log(_) => "log",
+            CollectItem::Meter(_) => "meter",
+            _ => "unknown",
+        };
+        println!("report item type: {:?}", typ);
+        self.grpc_reporter.report(item.clone());
+        self.kafka_reporter.report(item);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    let reporter = GrpcReporter::connect("http://collector:19876").await?;
-    let handle = reporter.reporting().await.spawn();
+
+    let reporter1 = GrpcReporter::connect("http://collector:19876").await?;
+    let handle1 = reporter1.reporting().await.spawn();
+
+    let mut client_config = RDKafkaClientConfig::new();
+    client_config
+        .set("bootstrap.servers", "broker:9092")
+        .set("message.timeout.ms", "6000");
+    let (reporter2, reporting) = KafkaReportBuilder::new(client_config)
+        .with_err_handle(|message, err| {
+            eprintln!(
+                "kafka reporter failed, message: {}, err: {:?}",
+                message, err
+            );
+        })
+        .build()
+        .await?;
+    let handle2 = reporting.spawn();
+
+    let reporter = CombineReporter {
+        grpc_reporter: reporter1,
+        kafka_reporter: reporter2,
+    };
 
     if opt.mode == "consumer" {
         tracer::set_global_tracer(Tracer::new("consumer", "node_0", reporter.clone()));
@@ -229,7 +275,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         unreachable!()
     }
 
-    handle.await?;
+    handle1.await?;
+    handle2.await?;
 
     Ok(())
 }
