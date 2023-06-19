@@ -265,7 +265,7 @@ fn create_consumer(topic: &str) -> StreamConsumer {
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", "broker:9092")
         .set("broker.address.family", "v4")
-        .set("session.timeout.ms", "6000")
+        .set("session.timeout.ms", "30000")
         .set("enable.auto.commit", "true")
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.offset.store", "true")
@@ -277,7 +277,7 @@ fn create_consumer(topic: &str) -> StreamConsumer {
 }
 
 async fn consumer_recv<T: Message + Default>(consumer: &StreamConsumer) -> T {
-    let message = timeout(Duration::from_secs(6), consumer.recv())
+    let message = timeout(Duration::from_secs(12), consumer.recv())
         .await
         .unwrap()
         .unwrap();

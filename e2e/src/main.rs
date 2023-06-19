@@ -243,7 +243,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let handle1 = reporter1.reporting().await.spawn();
 
     let mut client_config = RDKafkaClientConfig::new();
-    client_config.set("bootstrap.servers", "broker:9092");
+    client_config
+        .set("bootstrap.servers", "broker:9092")
+        .set("message.timeout.ms", "6000");
     let (reporter2, reporting) = KafkaReportBuilder::new(client_config)
         .with_err_handle(|message, err| {
             eprintln!(
