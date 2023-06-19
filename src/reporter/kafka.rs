@@ -65,8 +65,8 @@ impl State {
     }
 }
 
-/// Reporter which just print the collect items, not actual report to server,
-/// for debug usage.
+/// The Kafka reporter plugin support report traces, metrics, logs, instance
+/// properties to Kafka cluster.
 pub struct KafkaReportBuilder<P, C> {
     state: Arc<State>,
     producer: Arc<P>,
@@ -77,7 +77,7 @@ pub struct KafkaReportBuilder<P, C> {
 }
 
 impl KafkaReportBuilder<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
-    /// Create builder, with rdkafka future.
+    /// Create builder, with rdkafka client configuration.
     pub fn new(client_config: RDKafkaClientConfig) -> Self {
         let (producer, consumer) = mpsc::unbounded_channel();
         Self::new_with_pc(client_config, producer, consumer)
