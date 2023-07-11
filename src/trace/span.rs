@@ -31,8 +31,8 @@ use std::{
     sync::{Arc, Weak},
 };
 
-/// [AbstractSpan] contains methods handle [SpanObject].
-pub trait AbstractSpan {
+/// [HandleSpanObject] contains methods to handle [SpanObject].
+pub trait HandleSpanObject {
     /// Get immutable span object reference.
     fn span_object(&self) -> &SpanObject;
 
@@ -199,7 +199,7 @@ impl Drop for Span {
     }
 }
 
-impl AbstractSpan for Span {
+impl HandleSpanObject for Span {
     #[inline]
     fn span_object(&self) -> &SpanObject {
         self.obj.as_ref().unwrap()
@@ -249,7 +249,7 @@ impl Drop for AsyncSpan {
     }
 }
 
-impl AbstractSpan for AsyncSpan {
+impl HandleSpanObject for AsyncSpan {
     #[inline]
     fn span_object(&self) -> &SpanObject {
         self.obj.as_ref().unwrap()

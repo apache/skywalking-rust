@@ -183,7 +183,7 @@ thread or coroutine.
 ```rust
 use skywalking::{
     trace::tracer::Tracer,
-    trace::span::AbstractSpan,
+    trace::span::HandleSpanObject,
 };
 
 async fn handle(tracer: Tracer) {

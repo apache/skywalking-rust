@@ -23,7 +23,7 @@ use skywalking::{
     reporter::{print::PrintReporter, CollectItem, Report},
     trace::{
         propagation::{decoder::decode_propagation, encoder::encode_propagation},
-        span::AbstractSpan,
+        span::HandleSpanObject,
         tracer::Tracer,
     },
 };
