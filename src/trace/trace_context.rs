@@ -28,7 +28,7 @@ use crate::{
     proto::v3::{RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject, SpanType},
     trace::{
         propagation::context::PropagationContext,
-        span::{AbstractSpan, Span},
+        span::{HandleSpanObject, Span},
         tracer::{Tracer, WeakTracer},
     },
 };

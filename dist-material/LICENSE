@@ -277,8 +277,8 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/ppv-lite86/0.2.8 0.2.8 Apache-2.0 OR MIT
     https://crates.io/crates/prettyplease/0.1.0 0.1.0 Apache-2.0 OR MIT
     https://crates.io/crates/proc-macro-crate/0.1.4 0.1.4 Apache-2.0 OR MIT
-    https://crates.io/crates/proc-macro2/1.0.32 1.0.32 Apache-2.0 OR MIT
-    https://crates.io/crates/quote/1.0.0 1.0.0 Apache-2.0 OR MIT
+    https://crates.io/crates/proc-macro2/1.0.52 1.0.52 Apache-2.0 OR MIT
+    https://crates.io/crates/quote/1.0.26 1.0.26 Apache-2.0 OR MIT
     https://crates.io/crates/rand/0.4.1 0.4.1 Apache-2.0 OR MIT
     https://crates.io/crates/rand/0.8.0 0.8.0 Apache-2.0 OR MIT
     https://crates.io/crates/rand_chacha/0.3.0 0.3.0 Apache-2.0 OR MIT
@@ -288,8 +288,8 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/regex-syntax/0.6.25 0.6.25 Apache-2.0 OR MIT
     https://crates.io/crates/remove_dir_all/0.5.0 0.5.0 Apache-2.0 OR MIT
     https://crates.io/crates/scopeguard/1.1.0 1.1.0 Apache-2.0 OR MIT
-    https://crates.io/crates/serde/1.0.143 1.0.143 Apache-2.0 OR MIT
-    https://crates.io/crates/serde_derive/1.0.143 1.0.143 Apache-2.0 OR MIT
+    https://crates.io/crates/serde/1.0.157 1.0.157 Apache-2.0 OR MIT
+    https://crates.io/crates/serde_derive/1.0.157 1.0.157 Apache-2.0 OR MIT
     https://crates.io/crates/serde_json/1.0.0 1.0.0 Apache-2.0 OR MIT
     https://crates.io/crates/signal-hook-registry/1.1.1 1.1.1 Apache-2.0 OR MIT
     https://crates.io/crates/smallvec/1.6.1 1.6.1 Apache-2.0 OR MIT
@@ -297,13 +297,15 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/socket2/0.4.4 0.4.4 Apache-2.0 OR MIT
     https://crates.io/crates/structopt/0.3.0 0.3.0 Apache-2.0 OR MIT
     https://crates.io/crates/structopt-derive/0.3.0 0.3.0 Apache-2.0 OR MIT
-    https://crates.io/crates/syn/1.0.90 1.0.90 Apache-2.0 OR MIT
+    https://crates.io/crates/syn/1.0.85 1.0.85 Apache-2.0 OR MIT
+    https://crates.io/crates/syn/2.0.0 2.0.0 Apache-2.0 OR MIT
     https://crates.io/crates/tempfile/3.0.2 3.0.2 Apache-2.0 OR MIT
     https://crates.io/crates/thiserror/1.0.32 1.0.32 Apache-2.0 OR MIT
     https://crates.io/crates/thiserror-impl/1.0.32 1.0.32 Apache-2.0 OR MIT
     https://crates.io/crates/time/0.3.9 0.3.9 Apache-2.0 OR MIT
     https://crates.io/crates/tokio-io-timeout/1.0.1 1.0.1 Apache-2.0 OR MIT
     https://crates.io/crates/toml/0.5.2 0.5.2 Apache-2.0 OR MIT
+    https://crates.io/crates/unicode-ident/1.0.0 1.0.0 Apache-2.0 OR MIT
     https://crates.io/crates/unicode-segmentation/1.2.0 1.2.0 Apache-2.0 OR MIT
     https://crates.io/crates/unicode-width/0.1.4 0.1.4 Apache-2.0 OR MIT
     https://crates.io/crates/unicode-xid/0.2.0 0.2.0 Apache-2.0 OR MIT

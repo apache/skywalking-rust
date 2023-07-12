@@ -23,7 +23,7 @@ use crate::{
         TextLog, TraceContext, YamlLog,
     },
     trace::{
-        span::{AbstractSpan, Span},
+        span::{HandleSpanObject, Span},
         trace_context::TracingContext,
     },
 };
