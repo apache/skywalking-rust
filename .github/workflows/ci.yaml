@@ -101,8 +101,10 @@ jobs:
       - name: Install protoc
         run: sudo apt-get install -y protobuf-compiler
         if: ${{ matrix.features != '--features vendored' }}
-      - name: Install Rust toolchain
-        run: rustup toolchain install 1.63.0 --component clippy
+      - name: Install Cargo nightly
+        run: rustup toolchain install nightly-2023-05-19
+      - name: Cargo minimal versions
+        run: cargo +nightly-2023-05-19 -Z minimal-versions generate-lockfile
       - name: Run check
         run: cargo check --workspace --release ${{ matrix.features }}
       - name: Run clippy
