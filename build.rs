@@ -14,14 +14,22 @@
 // limitations under the License.
 //
 
+use tonic_build::Config;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[allow(unused_mut)]
+    let mut config = Config::new();
+
     #[cfg(feature = "vendored")]
-    std::env::set_var("PROTOC", protobuf_src::protoc());
+    {
+        config.protoc_executable(protobuf_src::protoc());
+    }
 
     tonic_build::configure()
         .build_server(false)
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
-        .compile_protos(
+        .compile_protos_with_config(
+            config,
             &[
                 "./skywalking-data-collect-protocol/language-agent/Meter.proto",
                 "./skywalking-data-collect-protocol/language-agent/Tracing.proto",
