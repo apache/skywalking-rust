@@ -19,7 +19,7 @@
 
 use crate::{
     common::{
-        system_time::{fetch_time, TimePeriod},
+        system_time::{TimePeriod, fetch_time},
         wait_group::WaitGroup,
     },
     proto::v3::{SpanLayer, SpanObject, SpanType},
@@ -265,6 +265,7 @@ impl HandleSpanObject for AsyncSpan {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     trait AssertSend: Send + 'static {}
 
     impl AssertSend for Span {}

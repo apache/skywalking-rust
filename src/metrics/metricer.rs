@@ -29,7 +29,7 @@ use std::{
 use tokio::{
     select, spawn,
     sync::mpsc,
-    task::{spawn_blocking, JoinError, JoinHandle},
+    task::{JoinError, JoinHandle, spawn_blocking},
     time::interval,
 };
 

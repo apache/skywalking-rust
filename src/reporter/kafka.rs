@@ -22,11 +22,11 @@ pub use rdkafka::config::{ClientConfig as RDKafkaClientConfig, RDKafkaLogLevel};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::{
     error,
-    future::{pending, Future},
+    future::{Future, pending},
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering::Relaxed},
         Arc,
+        atomic::{AtomicBool, Ordering::Relaxed},
     },
     time::Duration,
 };

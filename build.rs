@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_server(false)
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
-        .compile(
+        .compile_protos(
             &[
                 "./skywalking-data-collect-protocol/language-agent/Meter.proto",
                 "./skywalking-data-collect-protocol/language-agent/Tracing.proto",

@@ -20,7 +20,7 @@ use skywalking::{
         KeyStringValuePair, Log, RefType, SegmentObject, SegmentReference, SpanLayer, SpanObject,
         SpanType,
     },
-    reporter::{print::PrintReporter, CollectItem, Report},
+    reporter::{CollectItem, Report, print::PrintReporter},
     trace::{
         propagation::{decoder::decode_propagation, encoder::encode_propagation},
         span::HandleSpanObject,

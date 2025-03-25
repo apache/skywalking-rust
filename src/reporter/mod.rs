@@ -27,7 +27,7 @@ use crate::proto::v3::{InstancePingPkg, InstanceProperties};
 use crate::proto::v3::{LogData, MeterData, SegmentObject};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, ops::Deref, sync::Arc};
-use tokio::sync::{mpsc, OnceCell};
+use tokio::sync::{OnceCell, mpsc};
 use tonic::async_trait;
 
 /// Collect item of protobuf object.

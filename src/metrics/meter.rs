@@ -17,10 +17,10 @@
 //! Meter with multiple types.
 
 use crate::{
-    common::system_time::{fetch_time, TimePeriod},
+    common::system_time::{TimePeriod, fetch_time},
     metrics::metricer::Metricer,
     proto::v3::{
-        meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
+        Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue, meter_data::Metric,
     },
 };
 use portable_atomic::AtomicF64;

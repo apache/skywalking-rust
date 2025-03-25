@@ -17,7 +17,7 @@
 //! Propagation encoder.
 
 use crate::trace::trace_context::TracingContext;
-use base64::encode;
+use base64::prelude::*;
 
 /// Encode TracingContext to carry current trace info to the destination of RPC
 /// call. In general, the output of this function will be packed in `sw8` header
@@ -25,12 +25,12 @@ use base64::encode;
 pub fn encode_propagation(context: &TracingContext, endpoint: &str, address: &str) -> String {
     format!(
         "1-{}-{}-{}-{}-{}-{}-{}",
-        encode(context.trace_id()),
-        encode(context.trace_segment_id()),
+        BASE64_STANDARD.encode(context.trace_id()),
+        BASE64_STANDARD.encode(context.trace_segment_id()),
         context.peek_active_span_id().unwrap_or(0),
-        encode(context.service()),
-        encode(context.service_instance()),
-        encode(endpoint),
-        encode(address)
+        BASE64_STANDARD.encode(context.service()),
+        BASE64_STANDARD.encode(context.service_instance()),
+        BASE64_STANDARD.encode(endpoint),
+        BASE64_STANDARD.encode(address)
     )
 }

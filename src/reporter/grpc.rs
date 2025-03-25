@@ -21,22 +21,21 @@ use super::{CollectItemConsume, CollectItemProduce};
 use crate::proto::v3::management_service_client::ManagementServiceClient;
 use crate::{
     proto::v3::{
-        log_report_service_client::LogReportServiceClient,
+        LogData, MeterData, SegmentObject, log_report_service_client::LogReportServiceClient,
         meter_report_service_client::MeterReportServiceClient,
-        trace_segment_report_service_client::TraceSegmentReportServiceClient, LogData, MeterData,
-        SegmentObject,
+        trace_segment_report_service_client::TraceSegmentReportServiceClient,
     },
     reporter::{CollectItem, Report},
 };
 use futures_core::Stream;
-use futures_util::future::{try_join_all, TryJoinAll};
+use futures_util::future::{TryJoinAll, try_join_all};
 use std::{
     error::Error,
-    future::{pending, Future},
+    future::{Future, pending},
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     task::{Context, Poll},
     time::Duration,
@@ -44,18 +43,18 @@ use std::{
 use tokio::{
     select,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Mutex,
+        mpsc::{self, Receiver, Sender},
     },
     task::JoinHandle,
     try_join,
 };
 use tokio_stream::StreamExt;
 use tonic::{
-    metadata::{Ascii, MetadataValue},
-    service::{interceptor::InterceptedService, Interceptor},
-    transport::{self, Channel, Endpoint},
     Request, Status,
+    metadata::{Ascii, MetadataValue},
+    service::{Interceptor, interceptor::InterceptedService},
+    transport::{self, Channel, Endpoint},
 };
 use tracing::error;
 
@@ -508,7 +507,7 @@ impl<I> ReceiveFrom<I> {
         }
     }
 
-    fn stream(&self) -> Option<impl Stream<Item = I>> {
+    fn stream(&self) -> Option<impl Stream<Item = I> + use<I>> {
         if self.is_closed.load(Ordering::Relaxed) {
             return None;
         }

@@ -20,7 +20,7 @@
 #![allow(rustdoc::invalid_html_tags)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use crate::common::system_time::{fetch_time, TimePeriod};
+use crate::common::system_time::{TimePeriod, fetch_time};
 
 tonic::include_proto!("skywalking.v3");
 
@@ -61,12 +61,14 @@ impl SpanObject {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     trait AssertSerialize: serde::Serialize {}
 
     impl AssertSerialize for SegmentObject {}
 
     impl AssertSerialize for SpanObject {}
 
+    #[allow(dead_code)]
     trait AssertDeserialize<'de>: serde::Deserialize<'de> {}
 
     impl AssertDeserialize<'_> for SegmentObject {}

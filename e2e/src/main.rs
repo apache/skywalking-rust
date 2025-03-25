@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 //
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::{
-    client::HttpConnector,
-    service::{make_service_fn, service_fn},
-    Body, Client, Method, Request, Response, Server, StatusCode,
+    body::{Bytes, Incoming},
+    client, server,
+    service::service_fn,
+    Method, Request, Response, StatusCode,
 };
+use hyper_util::rt::TokioIo;
 use skywalking::{
     logging::{
         logger::{self, Logger},
@@ -44,15 +47,15 @@ use skywalking::{
 };
 use std::{convert::Infallible, error::Error, net::SocketAddr};
 use structopt::StructOpt;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+};
 
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
 
-async fn handle_ping(
-    _req: Request<Body>,
-    client: Client<HttpConnector>,
-) -> Result<Response<Body>, Infallible> {
+async fn handle_ping(_req: Request<Incoming>) -> Response<BoxBody<Bytes, Infallible>> {
     logger::log(
         LogRecord::new()
             .add_tag("level", "DEBUG")
@@ -70,7 +73,7 @@ async fn handle_ping(
             .method(Method::GET)
             .header(SKYWALKING_HTTP_CONTEXT_HEADER_KEY, header)
             .uri("http://consumer:8082/pong")
-            .body(Body::from(""))
+            .body(Empty::<Bytes>::new())
             .unwrap();
 
         logger::log(
@@ -82,7 +85,11 @@ async fn handle_ping(
                 .record_type(RecordType::Text)
                 .content("do http request"),
         );
-        client.request(req).await.unwrap();
+
+        let stream = TcpStream::connect("consumer:8082").await.unwrap();
+        let io = TokioIo::new(stream);
+        let (mut sender, _conn) = client::conn::http1::handshake(io).await.unwrap();
+        sender.send_request(req).await.unwrap();
     }
     {
         let _span3 = context.create_local_span("async-job");
@@ -96,46 +103,43 @@ async fn handle_ping(
         .await
         .unwrap();
     }
-    Ok(Response::new(Body::from("ok")))
+    Response::new(Full::new(Bytes::from_static(b"ok")).boxed())
 }
 
 async fn producer_response(
-    _req: Request<Body>,
-    client: Client<HttpConnector>,
-) -> Result<Response<Body>, Infallible> {
-    match (_req.method(), _req.uri().path()) {
-        (&Method::GET, "/ping") => handle_ping(_req, client).await,
+    req: Request<Incoming>,
+) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/ping") => Ok(handle_ping(req).await),
         (&Method::GET, "/healthCheck") => Ok(Response::builder()
             .status(StatusCode::OK)
-            .body(Body::from(SUCCESS_MSG))
+            .body(Full::new(Bytes::from_static(SUCCESS_MSG.as_bytes())).boxed())
             .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::from(NOT_FOUND_MSG))
+            .body(Full::new(Bytes::from_static(NOT_FOUND_MSG.as_bytes())).boxed())
             .unwrap()),
     }
 }
 
 async fn run_producer_service(host: [u8; 4]) {
-    let client = Client::new();
-    let make_svc = make_service_fn(|_| {
-        let client = client.clone();
-
-        async {
-            Ok::<_, Infallible>(service_fn(move |req| {
-                producer_response(req, client.to_owned())
-            }))
-        }
-    });
     let addr = SocketAddr::from((host, 8081));
-    let server = Server::bind(&addr).serve(make_svc);
+    let listener = TcpListener::bind(&addr).await.unwrap();
     println!("starting producer on {:?}...", &addr);
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+
+    loop {
+        let (stream, _) = listener.accept().await.unwrap();
+        let io = TokioIo::new(stream);
+        tokio::task::spawn(async move {
+            server::conn::http1::Builder::new()
+                .serve_connection(io, service_fn(producer_response))
+                .await
+                .unwrap()
+        });
     }
 }
 
-async fn handle_pong(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
+async fn handle_pong(req: Request<Incoming>) -> Response<BoxBody<Bytes, Infallible>> {
     logger::log(
         LogRecord::new()
             .add_tag("level", "DEBUG")
@@ -145,39 +149,46 @@ async fn handle_pong(_req: Request<Body>) -> Result<Response<Body>, Infallible> 
     );
 
     let ctx = decode_propagation(
-        _req.headers()[SKYWALKING_HTTP_CONTEXT_HEADER_KEY]
+        req.headers()[SKYWALKING_HTTP_CONTEXT_HEADER_KEY]
             .to_str()
             .unwrap(),
     )
     .unwrap();
     let mut context = tracer::create_trace_context();
     let _span = context.create_entry_span_with_propagation("/pong", &ctx);
-    Ok(Response::new(Body::from("ok")))
+    Response::new(Full::new(Bytes::from_static(b"ok")).boxed())
 }
 
-async fn consumer_response(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    match (_req.method(), _req.uri().path()) {
-        (&Method::GET, "/pong") => handle_pong(_req).await,
+async fn consumer_response(
+    req: Request<Incoming>,
+) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/pong") => Ok(handle_pong(req).await),
         (&Method::GET, "/healthCheck") => Ok(Response::builder()
             .status(StatusCode::OK)
-            .body(Body::from(SUCCESS_MSG))
+            .body(Full::new(Bytes::from_static(SUCCESS_MSG.as_bytes())).boxed())
             .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::from(NOT_FOUND_MSG))
+            .body(Full::new(Bytes::from_static(NOT_FOUND_MSG.as_bytes())).boxed())
             .unwrap()),
     }
 }
 
 async fn run_consumer_service(host: [u8; 4]) {
-    let make_svc =
-        make_service_fn(|_| async { Ok::<_, Infallible>(service_fn(consumer_response)) });
-    let addr = SocketAddr::from((host, 8082));
-    let server = Server::bind(&addr).serve(make_svc);
-
+    let addr = SocketAddr::from((host, 8081));
+    let listener = TcpListener::bind(&addr).await.unwrap();
     println!("starting consumer on {:?}...", &addr);
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+
+    loop {
+        let (stream, _) = listener.accept().await.unwrap();
+        let io = TokioIo::new(stream);
+        tokio::task::spawn(async move {
+            server::conn::http1::Builder::new()
+                .serve_connection(io, service_fn(consumer_response))
+                .await
+                .unwrap()
+        });
     }
 }
 
