@@ -37,7 +37,8 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: 0.32.3
+      - name: Install and Run Tarpaulin
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml
       - uses: codecov/codecov-action@v2.1.0

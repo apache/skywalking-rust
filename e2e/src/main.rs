@@ -255,22 +255,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut client_config = RDKafkaClientConfig::new();
     client_config
-    .set("bootstrap.servers", "broker:9092")
-    .set("message.timeout.ms", "6000");
+        .set("bootstrap.servers", "broker:9092")
+        .set("message.timeout.ms", "6000");
     let (reporter2, reporting) = KafkaReportBuilder::new(client_config)
-    .with_err_handle(|message, err| {
-    eprintln!(
-    "kafka reporter failed, message: {}, err: {:?}",
-    message, err
-    );
-    })
-    .build()
-    .await?;
+        .with_err_handle(|message, err| {
+            eprintln!(
+                "kafka reporter failed, message: {}, err: {:?}",
+                message, err
+            );
+        })
+        .build()
+        .await?;
     let handle2 = reporting.spawn();
 
     let reporter = CombineReporter {
-    grpc_reporter: reporter1,
-    kafka_reporter: reporter2,
+        grpc_reporter: reporter1,
+        kafka_reporter: reporter2,
     };
 
     if opt.mode == "consumer" {
