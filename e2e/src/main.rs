@@ -55,7 +55,7 @@ use tokio::{
 static NOT_FOUND_MSG: &str = "not found";
 static SUCCESS_MSG: &str = "Success";
 
-async fn handle_ping(_req: Request<Incoming>) -> Response<BoxBody<Bytes, Infallible>> {
+async fn handle_ping(_req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     logger::log(
         LogRecord::new()
             .add_tag("level", "DEBUG")
@@ -88,7 +88,10 @@ async fn handle_ping(_req: Request<Incoming>) -> Response<BoxBody<Bytes, Infalli
 
         let stream = TcpStream::connect("consumer:8082").await.unwrap();
         let io = TokioIo::new(stream);
-        let (mut sender, _conn) = client::conn::http1::handshake(io).await.unwrap();
+        let (mut sender, conn) = client::conn::http1::handshake(io).await.unwrap();
+        tokio::task::spawn(async move {
+            conn.await.unwrap();
+        });
         sender.send_request(req).await.unwrap();
     }
     {
@@ -103,21 +106,19 @@ async fn handle_ping(_req: Request<Incoming>) -> Response<BoxBody<Bytes, Infalli
         .await
         .unwrap();
     }
-    Response::new(Full::new(Bytes::from_static(b"ok")).boxed())
+    Ok(Response::new(Full::new(Bytes::from("ok"))))
 }
 
-async fn producer_response(
-    req: Request<Incoming>,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+async fn producer_response(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/ping") => Ok(handle_ping(req).await),
+        (&Method::GET, "/ping") => handle_ping(req).await,
         (&Method::GET, "/healthCheck") => Ok(Response::builder()
             .status(StatusCode::OK)
-            .body(Full::new(Bytes::from_static(SUCCESS_MSG.as_bytes())).boxed())
+            .body(Full::new(Bytes::from(SUCCESS_MSG)))
             .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Full::new(Bytes::from_static(NOT_FOUND_MSG.as_bytes())).boxed())
+            .body(Full::new(Bytes::from(NOT_FOUND_MSG)))
             .unwrap()),
     }
 }
@@ -139,7 +140,7 @@ async fn run_producer_service(host: [u8; 4]) {
     }
 }
 
-async fn handle_pong(req: Request<Incoming>) -> Response<BoxBody<Bytes, Infallible>> {
+async fn handle_pong(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     logger::log(
         LogRecord::new()
             .add_tag("level", "DEBUG")
@@ -156,21 +157,19 @@ async fn handle_pong(req: Request<Incoming>) -> Response<BoxBody<Bytes, Infallib
     .unwrap();
     let mut context = tracer::create_trace_context();
     let _span = context.create_entry_span_with_propagation("/pong", &ctx);
-    Response::new(Full::new(Bytes::from_static(b"ok")).boxed())
+    Ok(Response::new(Full::new(Bytes::from("ok"))))
 }
 
-async fn consumer_response(
-    req: Request<Incoming>,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+async fn consumer_response(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/pong") => Ok(handle_pong(req).await),
+        (&Method::GET, "/pong") => handle_pong(req).await,
         (&Method::GET, "/healthCheck") => Ok(Response::builder()
             .status(StatusCode::OK)
-            .body(Full::new(Bytes::from_static(SUCCESS_MSG.as_bytes())).boxed())
+            .body(Full::new(Bytes::from(SUCCESS_MSG)))
             .unwrap()),
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Full::new(Bytes::from_static(NOT_FOUND_MSG.as_bytes())).boxed())
+            .body(Full::new(Bytes::from(NOT_FOUND_MSG)))
             .unwrap()),
     }
 }

@@ -4,3 +4,5 @@
 .idea/
 /.cargo/config.toml
 /vendor
+/.venv
+/venv
