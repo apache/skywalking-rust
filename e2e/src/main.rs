@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 //
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use http_body_util::{Empty, Full};
 use hyper::{
     body::{Bytes, Incoming},
     client, server,
