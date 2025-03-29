@@ -61,11 +61,8 @@ services:
   broker:
     image: apache/kafka:4.0.0
     container_name: broker
-    # I really have no idea why port mapping causes Kafka communication to fail,
-    # but this workaround seems to fix the issue.
-    network_mode: host   
-    # ports:
-    #   - "9092:9092"
+    ports:
+      - "9092:9092"
     healthcheck:
       test: [ "CMD", "nc", "-zv", "0.0.0.0", "9092"]
       interval: 5s
