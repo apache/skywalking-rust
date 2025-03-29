@@ -74,3 +74,4 @@ services:
       test: [ "CMD", "nc", "-zv", "0.0.0.0", "9092"]
       interval: 5s
       timeout: 5s
+      start_period: 30s
