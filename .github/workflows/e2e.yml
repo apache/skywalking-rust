@@ -33,7 +33,7 @@ jobs:
         with:
           submodules: recursive
       - name: Prepare service container
-        run: docker compose -f docker-compose.e2e.yml up --build -d
+        run: docker compose -f docker-compose.e2e.yml up --build -d --wait
       - name: Run e2e
         run: |
           pip3 install --upgrade pip
