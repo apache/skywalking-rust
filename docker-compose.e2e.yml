@@ -61,9 +61,15 @@ services:
   broker:
     image: landoop/fast-data-dev:3.3
     container_name: broker
-    ports:
-      - "9092:9092"
-      - "3030:3030"
+    # I really have no idea why port mapping causes Kafka communication to fail,
+    # but this workaround seems to fix the issue.
+    network_mode: host
+    environment:
+      - REGISTRY_PORT=8083
+      - REST_PORT=8084
+    # ports:
+    #   - "9092:9092"
+    #   - "3030:3030"
     healthcheck:
       test: [ "CMD", "nc", "-zv", "0.0.0.0", "9092"]
       interval: 5s
