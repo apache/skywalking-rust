@@ -37,7 +37,7 @@ jobs:
       - name: Run e2e
         run: |
           pip3 install --upgrade pip
-          pip3 install setuptools
+          pip3 install setuptools wheel
           pip3 install -r requirements.txt
           python3 e2e/run_e2e.py --expected_file=e2e/data/expected_context.yaml --max_retry_times=3 --target_path=/ping
           docker compose -f docker-compose.e2e.yml logs producer consumer
