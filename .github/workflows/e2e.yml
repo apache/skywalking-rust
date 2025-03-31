@@ -36,9 +36,11 @@ jobs:
         run: docker compose -f docker-compose.e2e.yml up --build -d --wait
       - name: Run e2e
         run: |
-          pip3 install --upgrade pip
-          pip3 install --upgrade setuptools wheel cython
-          pip3 install -r requirements.txt
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv python install 3.12
+          uv venv --python 3.12
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
           python3 e2e/run_e2e.py --expected_file=e2e/data/expected_context.yaml --max_retry_times=3 --target_path=/ping
           docker compose -f docker-compose.e2e.yml logs producer consumer
           docker compose -f docker-compose.e2e.yml exec -T producer /build/target/release/e2e-kafka
