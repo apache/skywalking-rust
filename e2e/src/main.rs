@@ -67,12 +67,12 @@ async fn handle_ping(_req: Request<Incoming>) -> Result<Response<Full<Bytes>>, I
     let mut context = tracer::create_trace_context();
     let _span = context.create_entry_span("/ping");
     {
-        let span2 = context.create_exit_span("/pong", "consumer:8082");
-        let header = encode_propagation(&context, "/pong", "consumer:8082");
+        let span2 = context.create_exit_span("/pong", "127.0.0.1:8082");
+        let header = encode_propagation(&context, "/pong", "127.0.0.1:8082");
         let req = Request::builder()
             .method(Method::GET)
             .header(SKYWALKING_HTTP_CONTEXT_HEADER_KEY, header)
-            .uri("http://consumer:8082/pong")
+            .uri("http://127.0.0.1:8082/pong")
             .body(Empty::<Bytes>::new())
             .unwrap();
 
@@ -86,7 +86,7 @@ async fn handle_ping(_req: Request<Incoming>) -> Result<Response<Full<Bytes>>, I
                 .content("do http request"),
         );
 
-        let stream = TcpStream::connect("consumer:8082").await.unwrap();
+        let stream = TcpStream::connect("127.0.0.1:8082").await.unwrap();
         let io = TokioIo::new(stream);
         let (mut sender, conn) = client::conn::http1::handshake(io).await.unwrap();
         tokio::task::spawn(async move {
@@ -254,7 +254,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut client_config = RDKafkaClientConfig::new();
     client_config
-        .set("bootstrap.servers", "broker:9092")
+        .set("bootstrap.servers", "127.0.0.1:9092")
         .set("message.timeout.ms", "6000")
         .set("allow.auto.create.topics", "true");
     let (reporter2, reporting) = KafkaReportBuilder::new(client_config)
