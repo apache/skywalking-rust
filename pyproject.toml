@@ -1,0 +1,12 @@
+[project]
+name = "skywalking-rust-e2e"
+version = "0.1.0"
+description = "Apache SkyWalking Rust Agent E2E Test"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apache-skywalking>=1.1.0",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
+    "retry>=0.9.2",
+]
