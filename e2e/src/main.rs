@@ -249,7 +249,7 @@ impl Report for CombineReporter {
 async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
 
-    let reporter1 = GrpcReporter::connect("http://collector:19876").await?;
+    let reporter1 = GrpcReporter::connect("http://127.0.0.1:19876").await?;
     let handle1 = reporter1.reporting().await.spawn();
 
     let mut client_config = RDKafkaClientConfig::new();
