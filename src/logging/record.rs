@@ -17,10 +17,10 @@
 //! Log record items.
 
 use crate::{
-    common::system_time::{fetch_time, TimePeriod},
+    common::system_time::{TimePeriod, fetch_time},
     proto::v3::{
-        log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
-        TextLog, TraceContext, YamlLog,
+        JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags, TextLog, TraceContext, YamlLog,
+        log_data_body::Content,
     },
     trace::{
         span::{HandleSpanObject, Span},

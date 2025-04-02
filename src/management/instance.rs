@@ -17,11 +17,10 @@
 //! Skywalking report instance properties items.
 
 use crate::proto::v3::{InstanceProperties, KeyStringValuePair};
-use once_cell::sync::Lazy;
-use std::{collections::HashMap, process};
+use std::{collections::HashMap, process, sync::LazyLock};
 use systemstat::{IpAddr, Platform, System};
 
-static IPS: Lazy<Vec<String>> = Lazy::new(|| {
+static IPS: LazyLock<Vec<String>> = LazyLock::new(|| {
     System::new()
         .networks()
         .ok()
@@ -44,7 +43,7 @@ static IPS: Lazy<Vec<String>> = Lazy::new(|| {
         .unwrap_or_default()
 });
 
-static HOST_NAME: Lazy<Option<String>> = Lazy::new(|| {
+static HOST_NAME: LazyLock<Option<String>> = LazyLock::new(|| {
     hostname::get()
         .ok()
         .and_then(|hostname| hostname.into_string().ok())

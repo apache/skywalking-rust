@@ -20,7 +20,7 @@ use skywalking::{
         metricer::Metricer,
     },
     proto::v3::{
-        meter_data::Metric, Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue,
+        Label, MeterBucketValue, MeterData, MeterHistogram, MeterSingleValue, meter_data::Metric,
     },
     reporter::{CollectItem, Report},
 };

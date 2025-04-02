@@ -20,8 +20,8 @@ use skywalking::{
         record::{LogRecord, RecordType},
     },
     proto::v3::{
-        log_data_body::Content, JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags,
-        TextLog, TraceContext,
+        JsonLog, KeyStringValuePair, LogData, LogDataBody, LogTags, TextLog, TraceContext,
+        log_data_body::Content,
     },
     reporter::{CollectItem, Report},
     trace::{span::HandleSpanObject, tracer::Tracer},

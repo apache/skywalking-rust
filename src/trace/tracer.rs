@@ -119,6 +119,7 @@ impl WeakTracer {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     trait AssertSend: Send {}
 
     impl AssertSend for Tracer {}

@@ -2,6 +2,7 @@
 /tests/target
 /e2e/target
 .idea/
-/Cargo.lock
 /.cargo/config.toml
 /vendor
+/.venv
+/venv

@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-version: "3.9"
 services:
   collector:
     image: ghcr.io/apache/skywalking-agent-test-tool/mock-collector:f4f5ef22b1df623464772816bb6b42ba611444ff
-    ports:
-      - "19876:19876"
-      - "12800:12800"
+    network_mode: host
     healthcheck:
       test: [ "CMD", "curl", "http://0.0.0.0:12800/healthCheck" ]
       interval: 5s
@@ -31,8 +28,7 @@ services:
     build:
       context: .
       dockerfile: ./e2e/docker/Dockerfile
-    expose:
-      - 8082
+    network_mode: host
     command: --mode consumer
     depends_on:
       collector:
@@ -48,8 +44,7 @@ services:
     build:
       context: .
       dockerfile: ./e2e/docker/Dockerfile
-    ports:
-      - "8081:8081"
+    network_mode: host
     command: --mode producer
     depends_on:
       collector:
@@ -60,11 +55,12 @@ services:
         condition: service_healthy
 
   broker:
-    image: landoop/fast-data-dev:3.3
+    image: apache/kafka:4.0.0
     container_name: broker
-    ports:
-      - "9092:9092"
+    network_mode: host
     healthcheck:
       test: [ "CMD", "nc", "-zv", "0.0.0.0", "9092"]
       interval: 5s
       timeout: 5s
+      retries: 3
+      start_period: 15s

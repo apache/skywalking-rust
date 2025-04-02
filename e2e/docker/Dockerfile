@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-FROM rust:1.65
+FROM rust:1.85
 RUN apt-get update && apt-get install -y cmake protobuf-compiler
-RUN rustup toolchain install nightly-2023-05-19
+RUN rustup toolchain install nightly-2025-03-24
 WORKDIR /build
 COPY . /build/
-RUN cargo +nightly-2023-05-19 -Z minimal-versions generate-lockfile
 RUN cargo build --release --workspace
 ENV RUST_BACKTRACE=1
 ENTRYPOINT ["/build/target/release/e2e"]

@@ -17,7 +17,7 @@
 //! Propagation decoder.
 
 use crate::trace::propagation::context::PropagationContext;
-use base64::decode;
+use base64::prelude::*;
 
 /// Decode context value packed in `sw8` header.
 pub fn decode_propagation(header_value: &str) -> crate::Result<PropagationContext> {
@@ -75,7 +75,7 @@ fn try_parse_sample_status(status: &str) -> crate::Result<bool> {
 }
 
 fn b64_encoded_into_string(enc: &str) -> crate::Result<String> {
-    if let Ok(result) = decode(enc) {
+    if let Ok(result) = BASE64_STANDARD.decode(enc) {
         if let Ok(decoded_str) = String::from_utf8(result) {
             return Ok(decoded_str);
         }

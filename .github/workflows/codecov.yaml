@@ -25,7 +25,7 @@ on:
       - 'v*'
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -37,7 +37,8 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: 0.22.0
+      - name: Install and Run Tarpaulin
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml
       - uses: codecov/codecov-action@v2.1.0

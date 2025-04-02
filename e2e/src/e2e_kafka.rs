@@ -67,7 +67,7 @@ fn check_segment(segment: &SegmentObject) {
         assert_eq!(segment.spans[0].refs[0].parent_endpoint, "/pong");
         assert_eq!(
             segment.spans[0].refs[0].network_address_used_at_peer,
-            "consumer:8082"
+            "127.0.0.1:8082"
         );
     } else if segment.service == "producer" {
         if segment.spans.last().unwrap().operation_name == "/ping" {
@@ -76,7 +76,7 @@ fn check_segment(segment: &SegmentObject) {
             assert_eq!(segment.spans[0].span_id, 1);
             assert_eq!(segment.spans[0].parent_span_id, 0);
             assert_eq!(segment.spans[0].operation_name, "/pong");
-            assert_eq!(segment.spans[0].peer, "consumer:8082");
+            assert_eq!(segment.spans[0].peer, "127.0.0.1:8082");
             assert_eq!(segment.spans[0].span_type, SpanType::Exit as i32);
             assert_eq!(segment.spans[0].span_layer, SpanLayer::Unknown as i32);
             assert_eq!(segment.spans[0].component_id, 11000);
@@ -263,7 +263,7 @@ fn check_log(log: &LogData) {
 
 fn create_consumer(topic: &str) -> StreamConsumer {
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", "broker:9092")
+        .set("bootstrap.servers", "127.0.0.1:9092")
         .set("broker.address.family", "v4")
         .set("session.timeout.ms", "30000")
         .set("enable.auto.commit", "true")
