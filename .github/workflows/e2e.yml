@@ -40,6 +40,7 @@ jobs:
           uv python install 3.12
           uv sync
           uv run e2e/run_e2e.py --expected_file=e2e/data/expected_context.yaml --max_retry_times=3 --target_path=/ping
+          sleep 10
           docker compose -f docker-compose.e2e.yml exec broker /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092
           docker compose -f docker-compose.e2e.yml exec -T producer /build/target/release/e2e-kafka
       - name: View logs
