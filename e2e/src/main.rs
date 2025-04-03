@@ -17,10 +17,10 @@
 //
 use http_body_util::{Empty, Full};
 use hyper::{
+    Method, Request, Response, StatusCode,
     body::{Bytes, Incoming},
     client, server,
     service::service_fn,
-    Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use skywalking::{
@@ -33,9 +33,9 @@ use skywalking::{
         metricer::Metricer,
     },
     reporter::{
+        CollectItem, Report,
         grpc::GrpcReporter,
         kafka::{KafkaReportBuilder, KafkaReporter, RDKafkaClientConfig},
-        CollectItem, Report,
     },
     trace::{
         propagation::{
