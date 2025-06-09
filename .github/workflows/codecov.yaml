@@ -32,11 +32,9 @@ jobs:
           submodules: true
       - name: Install protoc
         run: sudo apt-get install -y protobuf-compiler
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - run: |
+           rustup toolchain add --profile=minimal stable
+           rustup override set stable
       - name: Install and Run Tarpaulin
         run: |
           cargo install cargo-tarpaulin
