@@ -306,10 +306,11 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/hyper-timeout/0.5.2 0.5.2 Apache-2.0 OR MIT
     https://crates.io/crates/indexmap/1.9.3 1.9.3 Apache-2.0 OR MIT
     https://crates.io/crates/indexmap/2.8.0 2.8.0 Apache-2.0 OR MIT
+    https://crates.io/crates/io-uring/0.7.8 0.7.8 Apache-2.0 OR MIT
     https://crates.io/crates/itertools/0.14.0 0.14.0 Apache-2.0 OR MIT
     https://crates.io/crates/itoa/1.0.15 1.0.15 Apache-2.0 OR MIT
     https://crates.io/crates/lazy_static/1.5.0 1.5.0 Apache-2.0 OR MIT
-    https://crates.io/crates/libc/0.2.171 0.2.171 Apache-2.0 OR MIT
+    https://crates.io/crates/libc/0.2.174 0.2.174 Apache-2.0 OR MIT
     https://crates.io/crates/libz-sys/1.1.22 1.1.22 Apache-2.0 OR MIT
     https://crates.io/crates/lock_api/0.4.12 0.4.12 Apache-2.0 OR MIT
     https://crates.io/crates/log/0.4.27 0.4.27 Apache-2.0 OR MIT
@@ -417,13 +418,13 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://crates.io/crates/hyper-util/0.1.10 0.1.10 MIT
     https://crates.io/crates/mio/1.0.3 1.0.3 MIT
     https://crates.io/crates/nom/7.1.3 7.1.3 MIT
-    https://crates.io/crates/rdkafka/0.37.0 0.37.0 MIT
-    https://crates.io/crates/rdkafka-sys/4.8.0+2.3.0 4.8.0+2.3.0 MIT
+    https://crates.io/crates/rdkafka/0.38.0 0.38.0 MIT
+    https://crates.io/crates/rdkafka-sys/4.9.0+2.10.0 4.9.0+2.10.0 MIT
     https://crates.io/crates/redox_syscall/0.5.10 0.5.10 MIT
     https://crates.io/crates/slab/0.4.9 0.4.9 MIT
     https://crates.io/crates/strsim/0.8.0 0.8.0 MIT
     https://crates.io/crates/textwrap/0.11.0 0.11.0 MIT
-    https://crates.io/crates/tokio/1.44.1 1.44.1 MIT
+    https://crates.io/crates/tokio/1.46.1 1.46.1 MIT
     https://crates.io/crates/tokio-macros/2.5.0 2.5.0 MIT
     https://crates.io/crates/tokio-stream/0.1.17 0.1.17 MIT
     https://crates.io/crates/tokio-util/0.7.14 0.7.14 MIT
