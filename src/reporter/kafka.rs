@@ -18,9 +18,12 @@
 
 use super::{CollectItemConsume, CollectItemProduce};
 use crate::reporter::{CollectItem, Report};
-pub use rdkafka::config::{ClientConfig as RDKafkaClientConfig, RDKafkaLogLevel};
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::{
+    config::ClientConfig as RDKafkaClientConfig,
+    producer::{FutureProducer, FutureRecord},
+};
 use std::{
+    collections::HashMap,
     error,
     future::{Future, pending},
     pin::Pin,
@@ -48,6 +51,89 @@ pub enum Error {
     },
 }
 
+/// Log level for Kafka client.
+#[derive(Debug, Clone, Copy)]
+pub enum LogLevel {
+    /// Critical level.
+    Critical,
+    /// Error level.
+    Error,
+    /// Warning level.
+    Warning,
+    /// Notice level.
+    Notice,
+    /// Info level.
+    Info,
+    /// Debug level.
+    Debug,
+}
+
+impl From<LogLevel> for rdkafka::config::RDKafkaLogLevel {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Critical => rdkafka::config::RDKafkaLogLevel::Critical,
+            LogLevel::Error => rdkafka::config::RDKafkaLogLevel::Error,
+            LogLevel::Warning => rdkafka::config::RDKafkaLogLevel::Warning,
+            LogLevel::Notice => rdkafka::config::RDKafkaLogLevel::Notice,
+            LogLevel::Info => rdkafka::config::RDKafkaLogLevel::Info,
+            LogLevel::Debug => rdkafka::config::RDKafkaLogLevel::Debug,
+        }
+    }
+}
+
+/// Configuration for Kafka client.
+#[derive(Debug, Clone)]
+pub struct ClientConfig {
+    /// Configuration parameters as key-value pairs.
+    params: HashMap<String, String>,
+    /// Log level for the client.
+    log_level: Option<LogLevel>,
+}
+
+impl ClientConfig {
+    /// Create a new empty configuration.
+    pub fn new() -> Self {
+        Self {
+            params: HashMap::new(),
+            log_level: None,
+        }
+    }
+
+    /// Set a configuration parameter.
+    pub fn set<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.params.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set log level.
+    pub fn set_log_level(&mut self, level: LogLevel) -> &mut Self {
+        self.log_level = Some(level);
+        self
+    }
+
+    /// Convert to rdkafka ClientConfig.
+    fn to_rdkafka_config(&self) -> RDKafkaClientConfig {
+        let mut config = RDKafkaClientConfig::new();
+        for (key, value) in &self.params {
+            config.set(key, value);
+        }
+        if let Some(log_level) = self.log_level {
+            config.set_log_level(log_level.into());
+        }
+        config
+    }
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 type DynErrHandler = dyn Fn(&str, &dyn error::Error) + Send + Sync + 'static;
 
 fn default_err_handle(message: &str, err: &dyn error::Error) {
@@ -71,14 +157,14 @@ pub struct KafkaReportBuilder<P, C> {
     state: Arc<State>,
     producer: Arc<P>,
     consumer: C,
-    client_config: RDKafkaClientConfig,
+    client_config: ClientConfig,
     namespace: Option<String>,
     err_handle: Arc<DynErrHandler>,
 }
 
 impl KafkaReportBuilder<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedReceiver<CollectItem>> {
-    /// Create builder, with rdkafka client configuration.
-    pub fn new(client_config: RDKafkaClientConfig) -> Self {
+    /// Create builder, with client configuration.
+    pub fn new(client_config: ClientConfig) -> Self {
         let (producer, consumer) = mpsc::unbounded_channel();
         Self::new_with_pc(client_config, producer, consumer)
     }
@@ -87,7 +173,7 @@ impl KafkaReportBuilder<mpsc::UnboundedSender<CollectItem>, mpsc::UnboundedRecei
 impl<P: CollectItemProduce, C: CollectItemConsume> KafkaReportBuilder<P, C> {
     /// Special purpose, used for user-defined produce and consume operations,
     /// usually you can use [KafkaReportBuilder::new].
-    pub fn new_with_pc(client_config: RDKafkaClientConfig, producer: P, consumer: C) -> Self {
+    pub fn new_with_pc(client_config: ClientConfig, producer: P, consumer: C) -> Self {
         Self {
             state: Default::default(),
             producer: Arc::new(producer),
@@ -118,7 +204,7 @@ impl<P: CollectItemProduce, C: CollectItemConsume> KafkaReportBuilder<P, C> {
     /// handle to push data to kafka in the background.
     pub async fn build(self) -> Result<(KafkaReporter<P>, KafkaReporting<C>), Error> {
         let kafka_producer = KafkaProducer::new(
-            self.client_config.create()?,
+            self.client_config.to_rdkafka_config().create()?,
             self.err_handle.clone(),
             self.namespace,
         )

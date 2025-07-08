@@ -226,14 +226,14 @@ Make sure the feature `kafka-reporter` is enabled.
 #[cfg(feature = "kafka-reporter")]
 mod example {
     use skywalking::reporter::Report;
-    use skywalking::reporter::kafka::{KafkaReportBuilder, KafkaReporter, RDKafkaClientConfig};
+    use skywalking::reporter::kafka::{KafkaReportBuilder, KafkaReporter, ClientConfig};
 
     async fn do_something(reporter: &impl Report) {
         // ....
     }
 
     async fn foo() {
-        let mut client_config = RDKafkaClientConfig::new();
+        let mut client_config = ClientConfig::new();
         client_config
             .set("bootstrap.servers", "broker:9092")
             .set("message.timeout.ms", "6000");
