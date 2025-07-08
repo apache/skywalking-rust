@@ -35,7 +35,7 @@ use skywalking::{
     reporter::{
         CollectItem, Report,
         grpc::GrpcReporter,
-        kafka::{KafkaReportBuilder, KafkaReporter, RDKafkaClientConfig},
+        kafka::{ClientConfig, KafkaReportBuilder, KafkaReporter},
     },
     trace::{
         propagation::{
@@ -252,7 +252,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let reporter1 = GrpcReporter::connect("http://127.0.0.1:19876").await?;
     let handle1 = reporter1.reporting().await.spawn();
 
-    let mut client_config = RDKafkaClientConfig::new();
+    let mut client_config = ClientConfig::new();
     client_config
         .set("bootstrap.servers", "127.0.0.1:9092")
         .set("message.timeout.ms", "6000")
