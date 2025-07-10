@@ -16,13 +16,12 @@
 #![warn(rust_2018_idioms, missing_docs)]
 #![warn(clippy::dbg_macro, clippy::print_stdout)]
 #![doc = include_str!("../README.md")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub mod common;
 pub(crate) mod error;
 pub mod logging;
 #[cfg(feature = "management")]
-#[cfg_attr(docsrs, doc(cfg(feature = "management")))]
 pub mod management;
 pub mod metrics;
 pub mod proto;
