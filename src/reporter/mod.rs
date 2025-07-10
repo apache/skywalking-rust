@@ -18,7 +18,6 @@
 
 pub mod grpc;
 #[cfg(feature = "kafka-reporter")]
-#[cfg_attr(docsrs, doc(cfg(feature = "kafka-reporter")))]
 pub mod kafka;
 pub mod print;
 
@@ -42,11 +41,9 @@ pub enum CollectItem {
     Meter(Box<MeterData>),
     /// Instance properties object.
     #[cfg(feature = "management")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     Instance(Box<InstanceProperties>),
     /// Keep alive object.
     #[cfg(feature = "management")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "management")))]
     Ping(Box<InstancePingPkg>),
 }
 
