@@ -26,8 +26,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Install protoc
@@ -39,4 +42,6 @@ jobs:
         run: |
           cargo install cargo-tarpaulin
           cargo tarpaulin --out Xml
-      - uses: codecov/codecov-action@v2.1.0
+      - uses: codecov/codecov-action@v7.1.1
+        with:
+          use_oidc: true

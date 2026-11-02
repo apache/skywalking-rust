@@ -35,5 +35,5 @@ hyper-util = "0.1.10"
 prost = "0.13.5"
 rdkafka = { workspace = true }
 skywalking = { path = "..", features = ["kafka-reporter"] }
-structopt = "0.3"
+structopt = { version = "0.3", default-features = false }
 tokio = { version = "1", features = ["full"] }
