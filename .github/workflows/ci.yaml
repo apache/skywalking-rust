@@ -39,27 +39,27 @@ jobs:
     - doc
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
 
   license-check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
       - name: Check License Header
-        uses: apache/skywalking-eyes/header/@d299844e334855087f18ae1fe3c81ae8d22bc282
+        uses: apache/skywalking-eyes/header/@a196742f472feaffafea537ce5a2a4c3c53a8de4 # v0.9.0
         with:
           config: .github/licenserc.yaml
       - name: Check Dependencies License
-        uses: apache/skywalking-eyes/dependency/@d299844e334855087f18ae1fe3c81ae8d22bc282
+        uses: apache/skywalking-eyes/dependency/@a196742f472feaffafea537ce5a2a4c3c53a8de4 # v0.9.0
         with:
           config: .github/licenserc.yaml
       - name: Check Dependencies Licenses Summary
         run: |
-          go install github.com/apache/skywalking-eyes/cmd/license-eye@d299844e334855087f18ae1fe3c81ae8d22bc282
+          go install github.com/apache/skywalking-eyes/cmd/license-eye@a196742f472feaffafea537ce5a2a4c3c53a8de4 # v0.9.0
           license-eye dependency resolve --summary ./dist-material/LICENSE.tpl -c .github/licenserc.yaml || exit 1
           if [ ! -z "$(git diff -U0 ./dist-material/LICENSE)" ]; then
             echo "LICENSE file is not updated correctly"
@@ -71,7 +71,7 @@ jobs:
   fmt:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
       - name: Install Rust toolchain
@@ -91,7 +91,7 @@ jobs:
           - "--all-features"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
       - name: Install protoc
@@ -109,7 +109,7 @@ jobs:
   doc:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
       - name: Install protoc
