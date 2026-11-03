@@ -17,6 +17,7 @@
 #
 
 github:
+  dependabot_updates: false
   description: Apache SkyWalking Rust Agent
   homepage: https://skywalking.apache.org/
   labels:
